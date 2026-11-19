@@ -95,7 +95,19 @@ window.submitAccessPassword = async e => {
     await setPersistence(auth, browserSessionPersistence);
     await signInWithEmailAndPassword(auth, `${role}@${EMAIL_DOMAIN}`, pwd);
   } catch (ex) {
-    err.textContent = 'Mot de passe incorrect (ou trop de tentatives, réessayez plus tard).';
+    console.error('Connexion Firebase :', ex.code, ex.message);
+    const MSG = {
+      'auth/invalid-credential': 'Mot de passe incorrect, ou compte inexistant dans Firebase.',
+      'auth/wrong-password': 'Mot de passe incorrect.',
+      'auth/user-not-found': 'Compte inexistant dans Firebase (' + role + '@' + EMAIL_DOMAIN + ').',
+      'auth/too-many-requests': 'Trop de tentatives, réessayez dans quelques minutes.',
+      'auth/operation-not-allowed': 'Connexion e-mail/mot de passe non activée dans Firebase.',
+      'auth/invalid-api-key': 'Config Firebase invalide (apiKey).',
+      'auth/api-key-not-valid.-please-pass-a-valid-api-key.': 'Config Firebase invalide (apiKey).',
+      'auth/unauthorized-domain': 'Domaine non autorisé dans Firebase Authentication.',
+      'auth/network-request-failed': 'Pas de connexion réseau.'
+    };
+    err.textContent = MSG[ex.code] || ('Erreur de connexion : ' + (ex.code || ex.message));
     err.classList.remove('hidden');
     return;
   }
