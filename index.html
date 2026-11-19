@@ -1,0 +1,1717 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bourse aux Skis - SO Skis BASSENS</title>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com"></script>
+<!-- Lucide Icons -->
+<script src="https://unpkg.com/lucide@latest"></script>
+<!-- JsBarcode pour les codes-barres réels CODE128B -->
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+<!-- Html5-QRCode pour le scan caméra sur mobile -->
+<script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+<!-- Google Fonts: Inter & JetBrains Mono -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+body {
+  font-family: 'Inter', sans-serif;
+  background-color: #f8fafc;
+  color: #0f172a;
+}
+.font-mono-code {
+  font-family: 'JetBrains Mono', monospace;
+}
+.fade-in {
+  animation: fadeIn 0.22s ease-out;
+}
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes scanPop {
+  0% { transform: scale(0.94); opacity: 0; }
+  60% { transform: scale(1.02); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.scan-pop {
+  animation: scanPop 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@media print {
+  body * { visibility: hidden; }
+  #print-area, #print-area * { visibility: visible; }
+  #print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    background: white !important;
+  }
+  .no-print { display: none !important; }
+  @page { size: A4 portrait; margin: 8mm; }
+  .page-break { page-break-after: always; break-after: page; }
+}
+</style>
+</head>
+<body class="min-h-screen flex flex-col">
+<!-- Zone cachée dédiée à l'impression directe -->
+<div id="print-area" class="hidden print:block"></div>
+<!-- Notification Toast flottante -->
+<div id="toast-container" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-none px-4 sm:px-0"></div>
+
+<!-- Barre de Navigation Supérieure -->
+<header class="bg-slate-900 text-white shadow-lg sticky top-0 z-40 no-print">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="flex flex-wrap items-center justify-between py-3 gap-3">
+      <!-- Identité Club -->
+      <div class="flex items-center gap-3 cursor-pointer" onclick="switchMainTab('deposant')">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-sky-400 to-blue-600 flex items-center justify-center shadow-md shrink-0">
+          <i data-lucide="mountain-snow" class="w-6 h-6 text-white"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="font-extrabold text-base sm:text-lg tracking-tight leading-none">BOURSE AUX SKIS</span>
+            <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-400/30">SOB</span>
+          </div>
+          <p class="text-xs text-slate-400 mt-0.5">SO Skis BASSENS • Gestion & Caisse</p>
+        </div>
+      </div>
+      <!-- Navigation principale -->
+      <nav class="flex flex-wrap items-center gap-1.5 bg-slate-800/90 p-1 rounded-xl border border-slate-700/80">
+        <button onclick="switchMainTab('deposant')" id="nav-deposant" class="nav-btn px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold flex items-center gap-1.5 transition-all bg-sky-600 text-white shadow">
+          <i data-lucide="user-plus" class="w-4 h-4"></i>
+          <span>Espace Déposant</span>
+        </button>
+        <button onclick="switchMainTab('depots')" id="nav-depots" class="nav-btn px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold flex items-center gap-1.5 transition-all text-slate-300 hover:text-white hover:bg-slate-700/70">
+          <i data-lucide="lock" id="icon-lock-depots" class="w-3.5 h-3.5 text-amber-400"></i>
+          <span>Bénévoles Dépôts</span>
+        </button>
+        <button onclick="switchMainTab('ventes')" id="nav-ventes" class="nav-btn px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold flex items-center gap-1.5 transition-all text-slate-300 hover:text-white hover:bg-slate-700/70">
+          <i data-lucide="lock" id="icon-lock-ventes" class="w-3.5 h-3.5 text-amber-400"></i>
+          <span>Bénévoles Ventes</span>
+        </button>
+        <button onclick="switchMainTab('caisses')" id="nav-caisses" class="nav-btn px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold flex items-center gap-1.5 transition-all text-slate-300 hover:text-white hover:bg-slate-700/70">
+          <i data-lucide="lock" id="icon-lock-caisses" class="w-3.5 h-3.5 text-amber-400"></i>
+          <span>Caisses</span>
+        </button>
+      </nav>
+      <!-- Outils Bénévoles -->
+      <div id="volunteer-header-tools" class="hidden items-center gap-2">
+        <span id="autosave-status" class="hidden xl:inline-flex items-center gap-1 text-[11px] text-emerald-300 bg-emerald-950/70 border border-emerald-700/50 px-2.5 py-1 rounded-lg">
+          <i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i>
+          <span id="autosave-time">Sauvegardé</span>
+        </span>
+        <button onclick="downloadSessionBackup()" title="Enregistrer une sauvegarde complète (.JSON)" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 transition flex items-center gap-1.5 text-xs font-semibold">
+          <i data-lucide="download" class="w-4 h-4"></i>
+          <span class="hidden md:inline">Enregistrer</span>
+        </button>
+        <label title="Charger un fichier de sauvegarde (.JSON)" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 transition flex items-center gap-1.5 text-xs font-semibold cursor-pointer">
+          <i data-lucide="upload" class="w-4 h-4"></i>
+          <span class="hidden md:inline">Charger</span>
+          <input type="file" accept=".json" class="hidden" onchange="handleSessionBackupUpload(event)">
+        </label>
+        <button onclick="promptNewBlankSession()" title="Démarrer une bourse vierge" class="p-2 rounded-lg bg-slate-800 hover:bg-rose-900/60 text-rose-300 border border-slate-700 transition flex items-center gap-1.5 text-xs font-semibold">
+          <i data-lucide="file-plus-2" class="w-4 h-4"></i>
+          <span class="hidden md:inline">Vierge</span>
+        </button>
+        <button onclick="lockAllVolunteerSpaces()" title="Verrouiller tous les accès" class="p-2 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 transition flex items-center gap-1 text-xs font-bold">
+          <i data-lucide="log-out" class="w-4 h-4"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- Contenu Principal -->
+<main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 no-print">
+  <!-- 1. ESPACE DÉPOSANT -->
+  <section id="view-deposant" class="fade-in space-y-6">
+    <div class="bg-gradient-to-r from-sky-700 via-blue-700 to-indigo-800 rounded-2xl p-6 text-white shadow-md">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <span class="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider bg-white/15 px-3 py-1 rounded-full mb-2">
+            <i data-lucide="shield-check" class="w-3.5 h-3.5"></i> SO Skis BASSENS • Pré-enregistrement sécurisé
+          </span>
+          <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight">Préparez votre dépôt en ligne</h1>
+          <p class="text-sky-100 text-sm mt-1 max-w-2xl">
+            Créez votre dossier avec un code secret à 4 chiffres et enregistrez votre matériel à l'avance.<br>
+            <span class="font-semibold text-white">Conditions club : 1,00 € par article déposé, 10% de commission sur les ventes.</span>
+          </p>
+        </div>
+        <div id="deposant-active-badge" class="hidden bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl p-3.5 shrink-0">
+          <div class="text-xs text-sky-200">Dossier ouvert</div>
+          <div class="font-bold text-base" id="header-dep-name">-</div>
+          <button onclick="logoutDeposant()" class="mt-2 w-full bg-white text-slate-900 hover:bg-sky-50 font-bold text-xs py-1.5 px-3 rounded-lg transition flex items-center justify-center gap-1.5 shadow-sm">
+            <i data-lucide="log-out" class="w-3.5 h-3.5 text-rose-600"></i> Fermer
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Écran d'accès Déposant -->
+    <div id="deposant-auth-screen" class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+        <div class="flex items-center gap-3 mb-4">
+          <div class="w-10 h-10 rounded-xl bg-sky-100 text-sky-700 flex items-center justify-center">
+            <i data-lucide="user-plus" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h2 class="text-lg font-bold text-slate-900">1. Nouveau déposant</h2>
+            <p class="text-xs text-slate-500">Créez votre fiche personnelle et choisissez un code secret à 4 chiffres</p>
+          </div>
+        </div>
+        <form onsubmit="handleCreateDeposantPublic(event)" class="space-y-4">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Nom de famille *</label>
+              <input type="text" id="pub-dep-nom" required placeholder="Ex: DUPONT" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-sky-500 uppercase text-sm font-medium">
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Prénom *</label>
+              <input type="text" id="pub-dep-prenom" required placeholder="Ex: Camille" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-sky-500 text-sm font-medium">
+            </div>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Téléphone *</label>
+              <input type="tel" id="pub-dep-tel" required placeholder="06 12 34 56 78" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-sky-500 text-sm">
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Email (optionnel)</label>
+              <input type="email" id="pub-dep-email" placeholder="camille@exemple.fr" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-sky-500 text-sm">
+            </div>
+          </div>
+          <div class="bg-amber-50 border border-amber-200 rounded-xl p-3.5">
+            <label class="block text-xs font-bold text-amber-900 uppercase mb-1">Code secret à 4 chiffres *</label>
+            <input type="password" id="pub-dep-pin" required maxlength="4" pattern="[0-9]{4}" inputmode="numeric" placeholder="Ex: 4829" class="w-full sm:w-48 px-3.5 py-2.5 rounded-xl border border-amber-300 bg-white focus:ring-2 focus:ring-amber-500 font-mono-code text-lg font-bold tracking-widest text-center">
+            <p class="text-[11px] text-amber-800 mt-1.5">Notez bien ce code : il vous sera demandé avec votre nom pour rouvrir votre liste.</p>
+          </div>
+          <button type="submit" class="w-full py-3 px-4 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-sm shadow-sm transition flex items-center justify-center gap-2">
+            <i data-lucide="arrow-right-circle" class="w-4 h-4"></i>
+            <span>Créer mon dossier & saisir mes articles</span>
+          </button>
+        </form>
+      </div>
+
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 flex flex-col justify-between">
+        <div>
+          <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center">
+              <i data-lucide="key-round" class="w-5 h-5"></i>
+            </div>
+            <div>
+              <h2 class="text-lg font-bold text-slate-900">2. Retrouver mon dossier</h2>
+              <p class="text-xs text-slate-500">Accès personnel par Nom de famille + Code à 4 chiffres</p>
+            </div>
+          </div>
+          <form onsubmit="handleLoginDeposantPublic(event)" class="space-y-4">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Votre Nom de famille *</label>
+              <input type="text" id="login-dep-nom" required placeholder="Votre nom" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 uppercase text-sm font-medium">
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Votre Code secret à 4 chiffres *</label>
+              <input type="password" id="login-dep-pin" required maxlength="4" pattern="[0-9]{4}" inputmode="numeric" placeholder="...." class="w-full sm:w-48 px-3.5 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 font-mono-code text-lg font-bold tracking-widest text-center">
+            </div>
+            <button type="submit" class="w-full py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-sm transition flex items-center justify-center gap-2">
+              <i data-lucide="unlock" class="w-4 h-4"></i>
+              <span>Ouvrir mon dossier personnel</span>
+            </button>
+          </form>
+        </div>
+        <div class="mt-6 bg-slate-50 border border-slate-200 rounded-xl p-3.5 flex items-start gap-2.5 text-xs text-slate-600">
+          <i data-lucide="eye-off" class="w-4 h-4 text-slate-500 shrink-0 mt-0.5"></i>
+          <p><strong>Confidentialité garantie :</strong> Aucun nom ni article des autres déposants n'est visible.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Espace de gestion des articles du déposant -->
+    <div id="deposant-workspace" class="hidden space-y-6">
+      <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div class="flex items-center gap-3.5">
+          <div class="w-12 h-12 rounded-2xl bg-sky-100 text-sky-700 flex items-center justify-center font-extrabold text-lg">
+            <i data-lucide="folder-check" class="w-6 h-6"></i>
+          </div>
+          <div>
+            <div class="flex flex-wrap items-center gap-2">
+              <h2 class="text-xl font-extrabold text-slate-900" id="ws-dep-fullname">-</h2>
+              <span class="text-xs font-mono-code font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+                PIN: <span id="ws-dep-pin">****</span>
+              </span>
+            </div>
+            <p class="text-xs text-slate-500 mt-0.5" id="ws-dep-contact">-</p>
+          </div>
+        </div>
+        <button onclick="logoutDeposant()" class="px-4 py-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs transition flex items-center gap-1.5">
+          <i data-lucide="log-out" class="w-4 h-4"></i>
+          <span>Terminer & Fermer mon compte</span>
+        </button>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div class="lg:col-span-5 bg-white rounded-2xl shadow-sm border border-slate-200 p-6 h-fit">
+          <h3 class="text-base font-bold text-slate-900 mb-4 flex items-center gap-2">
+            <i data-lucide="plus-circle" class="w-5 h-5 text-sky-600"></i>
+            <span>Ajouter un article à déposer</span>
+          </h3>
+          <form onsubmit="handleAddArticlePublic(event)" class="space-y-4">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Type de matériel *</label>
+              <select id="pub-art-type" required class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white focus:ring-2 focus:ring-sky-500 text-sm font-medium">
+                <option value="Skis">Skis / Snowboard</option>
+                <option value="Chaussures">Chaussures de ski / Boots</option>
+                <option value="Vêtements">Vêtements (Veste, Pantalon, Combi)</option>
+                <option value="Divers">Divers (Casque, Bâtons, Masque)</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Marque & Modèle *</label>
+              <input type="text" id="pub-art-brandmodel" required placeholder="Ex: Rossignol Hero" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-sky-500 text-sm font-medium">
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Taille / Pointure *</label>
+                <input type="text" id="pub-art-size" required placeholder="Ex: 167 cm" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-sky-500 text-sm">
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Prix souhaité (€) *</label>
+                <input type="number" id="pub-art-price" required min="1" step="1" placeholder="Ex: 120" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-sky-500 text-sm font-bold">
+              </div>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1">État / Couleur / Détails</label>
+              <input type="text" id="pub-art-notes" placeholder="Ex: Bon état, bleu/noir" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-sky-500 text-sm">
+            </div>
+            <button type="submit" class="w-full py-3 px-4 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-sm shadow-sm transition flex items-center justify-center gap-2">
+              <i data-lucide="plus" class="w-4 h-4"></i>
+              <span>Enregistrer cet article</span>
+            </button>
+          </form>
+        </div>
+
+        <div class="lg:col-span-7 bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-4">
+            <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
+              <i data-lucide="list-checks" class="w-5 h-5 text-emerald-600"></i>
+              <span>Mes articles enregistrés (<span id="ws-dep-count">0</span>)</span>
+            </h3>
+            <span class="text-xs font-semibold px-2.5 py-1 rounded-lg bg-sky-50 text-sky-800 border border-sky-200">
+              Frais de dépôt: <strong id="ws-dep-fees">0,00 €</strong>
+            </span>
+          </div>
+          <div id="ws-dep-articles-list" class="space-y-3"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. ESPACE BÉNÉVOLES DÉPÔTS -->
+  <section id="view-depots" class="hidden fade-in space-y-6">
+    <div class="bg-slate-900 text-white rounded-2xl p-5 shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div class="flex items-center gap-3.5">
+        <div class="w-12 h-12 rounded-2xl bg-sky-500/20 border border-sky-400/40 text-sky-300 flex items-center justify-center shrink-0">
+          <i data-lucide="monitor-check" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span id="depot-poste-badge" class="text-xs font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-sky-500 text-white">POSTE VERROUILLÉ</span>
+            <span id="depot-poste-fee-pill" class="text-xs font-bold px-2.5 py-0.5 rounded-full bg-white/10 text-sky-200">1 € / article</span>
+          </div>
+          <h1 id="depot-poste-title" class="text-xl sm:text-2xl font-extrabold mt-1">Poste Bénévole Dépôts</h1>
+          <p id="depot-poste-desc" class="text-xs text-slate-300 mt-0.5">-</p>
+        </div>
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+        <button id="btn-import-pro" onclick="openProImportModal()" class="hidden px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-extrabold text-xs shadow-md transition items-center gap-2">
+          <i data-lucide="file-spreadsheet" class="w-4 h-4"></i>
+          <span>Import Matériel Pro</span>
+        </button>
+        <button onclick="switchDepotPostePrompt()" class="px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold text-xs transition flex items-center gap-1.5">
+          <i data-lucide="key-round" class="w-3.5 h-3.5 text-amber-400"></i>
+          <span>Changer de poste</span>
+        </button>
+      </div>
+    </div>
+
+    <div id="poste1-internet-panel" class="hidden bg-sky-50 border-2 border-sky-200 rounded-2xl p-5 space-y-4">
+      <div class="flex items-center justify-between gap-2">
+        <div class="flex items-center gap-2.5">
+          <div class="w-9 h-9 rounded-xl bg-sky-600 text-white flex items-center justify-center">
+            <i data-lucide="globe" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h2 class="text-base font-extrabold text-sky-950">Poste 1 Accueil Pré-saisie Internet</h2>
+            <p class="text-xs text-sky-800">Retrouvez un déposant pré-inscrit en ligne pour contrôler son matériel.</p>
+          </div>
+        </div>
+        <span class="text-xs font-bold px-3 py-1 rounded-full bg-white text-sky-800 border border-sky-200">Numérotation: 1001+</span>
+      </div>
+      <input type="text" id="poste1-search-input" oninput="renderPoste1PreRegistrations()" placeholder="Rechercher par Nom, Prénom ou Téléphone..." class="w-full px-4 py-2.5 rounded-xl border border-sky-300 bg-white focus:ring-2 focus:ring-sky-500 text-sm font-medium">
+      <div id="poste1-prereg-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3"></div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div class="lg:col-span-5 space-y-5">
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+          <h3 class="text-base font-bold text-slate-900 mb-3 flex items-center gap-2">
+            <i data-lucide="user-plus" class="w-5 h-5 text-sky-600"></i>
+            <span id="depot-new-dep-heading">Enregistrer un nouveau déposant</span>
+          </h3>
+          <form onsubmit="handleCreateDeposantVolunteer(event)" class="space-y-3">
+            <div class="grid grid-cols-2 gap-2.5">
+              <div>
+                <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1" id="lbl-vol-nom">Nom *</label>
+                <input type="text" id="vol-dep-nom" required placeholder="DUPONT" class="w-full px-3 py-2 rounded-xl border border-slate-300 uppercase text-sm font-semibold">
+              </div>
+              <div>
+                <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1" id="lbl-vol-prenom">Prénom *</label>
+                <input type="text" id="vol-dep-prenom" required placeholder="Jean" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm">
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-2.5">
+              <div>
+                <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1">Téléphone *</label>
+                <input type="tel" id="vol-dep-tel" required placeholder="06..." class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm">
+              </div>
+              <div>
+                <label class="block text-[11px] font-bold text-slate-700 uppercase mb-1">Email</label>
+                <input type="email" id="vol-dep-email" placeholder="optionnel" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm">
+              </div>
+            </div>
+            <button type="submit" class="w-full py-2.5 px-4 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-sm shadow-sm transition flex items-center justify-center gap-2">
+              <i data-lucide="plus-circle" class="w-4 h-4"></i>
+              <span>Ouvrir la fiche de dépôt</span>
+            </button>
+          </form>
+        </div>
+
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+              <i data-lucide="users" class="w-4 h-4 text-slate-600"></i>
+              <span>Dossiers du poste (<span id="poste-deposants-count">0</span>)</span>
+            </h3>
+            <input type="text" id="poste-filter-input" oninput="renderPosteDeposantsList()" placeholder="Filtrer..." class="px-2.5 py-1 rounded-lg border border-slate-200 text-xs w-32">
+          </div>
+          <div id="poste-deposants-list" class="space-y-2 max-h-96 overflow-y-auto pr-1"></div>
+        </div>
+      </div>
+
+      <div class="lg:col-span-7">
+        <div id="volunteer-no-selection" class="bg-white rounded-2xl border-2 border-dashed border-slate-200 p-10 text-center text-slate-500">
+          <i data-lucide="clipboard-list" class="w-12 h-12 mx-auto text-slate-300 mb-3"></i>
+          <p class="font-bold text-slate-700">Aucun dossier actif sélectionné sur ce poste</p>
+        </div>
+        <div id="volunteer-active-dossier" class="hidden bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-5">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
+            <div>
+              <div class="flex flex-wrap items-center gap-2">
+                <span id="vol-dossier-num" class="font-mono-code font-extrabold text-sm px-2.5 py-0.5 rounded-lg bg-slate-900 text-white">#</span>
+                <h3 id="vol-dossier-name" class="text-lg font-extrabold text-slate-900">-</h3>
+                <span id="vol-dossier-type-pill" class="text-xs font-bold px-2.5 py-0.5 rounded-full bg-sky-100 text-sky-800">Particulier</span>
+              </div>
+              <p id="vol-dossier-info" class="text-xs text-slate-500 mt-1">-</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <div class="text-right mr-2">
+                <div id="vol-dossier-fees" class="text-base font-black text-sky-700">0,00 €</div>
+                <div class="text-[10px] uppercase font-bold text-slate-500">Frais de dépôt</div>
+              </div>
+              <button onclick="printSingleDeposantLabels()" class="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-sm transition flex items-center gap-1.5">
+                <i data-lucide="printer" class="w-4 h-4"></i>
+                <span>Imprimer étiquettes</span>
+              </button>
+            </div>
+          </div>
+
+          <form onsubmit="handleAddArticleVolunteer(event)" class="bg-slate-50 rounded-xl p-4 border border-slate-200 space-y-3">
+            <div class="text-xs font-extrabold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
+              <i data-lucide="tag" class="w-3.5 h-3.5 text-sky-600"></i>
+              <span>Ajouter un article au dépôt</span>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+              <div class="sm:col-span-4">
+                <label class="block text-[11px] font-bold text-slate-600 mb-1">Type *</label>
+                <select id="vol-art-type" required class="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm font-medium">
+                  <option value="Skis">Skis / Snow</option>
+                  <option value="Chaussures">Chaussures</option>
+                  <option value="Vêtements">Vêtements</option>
+                  <option value="Divers">Divers</option>
+                </select>
+              </div>
+              <div class="sm:col-span-8">
+                <label class="block text-[11px] font-bold text-slate-600 mb-1">Marque & Modèle *</label>
+                <input type="text" id="vol-art-brandmodel" required placeholder="Salomon QST 92" class="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm font-medium">
+              </div>
+            </div>
+            <div class="grid grid-cols-2 sm:grid-cols-12 gap-2.5">
+              <div class="col-span-1 sm:col-span-4">
+                <label class="block text-[11px] font-bold text-slate-600 mb-1">Taille *</label>
+                <input type="text" id="vol-art-size" required placeholder="176 cm" class="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm">
+              </div>
+              <div class="col-span-1 sm:col-span-3">
+                <label class="block text-[11px] font-bold text-slate-600 mb-1">Prix (€) *</label>
+                <input type="number" id="vol-art-price" required min="1" step="1" placeholder="150" class="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm font-bold">
+              </div>
+              <div class="col-span-2 sm:col-span-5">
+                <label class="block text-[11px] font-bold text-slate-600 mb-1">Détails</label>
+                <input type="text" id="vol-art-notes" placeholder="Optionnel" class="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm">
+              </div>
+            </div>
+            <button type="submit" class="w-full py-2.5 px-4 rounded-lg bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs shadow-sm transition flex items-center justify-center gap-1.5">
+              <i data-lucide="plus" class="w-4 h-4"></i>
+              <span>Valider l'article & Générer le code-barres</span>
+            </button>
+          </form>
+
+          <div>
+            <h4 class="text-xs font-extrabold uppercase tracking-wider text-slate-600 mb-2.5">Articles enregistrés (<span id="vol-dossier-art-count">0</span>)</h4>
+            <div id="vol-dossier-articles-list" class="space-y-2"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. ESPACE BÉNÉVOLES VENTES -->
+  <section id="view-ventes" class="hidden fade-in space-y-6">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <div class="lg:col-span-7 space-y-5">
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+          <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+            <div>
+              <span class="text-[11px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800">SO Skis BASSENS • Espace Ventes</span>
+              <h2 class="text-xl font-extrabold text-slate-900 mt-1">Scanner un article</h2>
+            </div>
+            <button id="btn-toggle-cam" onclick="toggleCashierScanner()" class="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center gap-2 shadow-sm transition">
+              <i data-lucide="camera" class="w-4 h-4 text-sky-400"></i>
+              <span id="lbl-toggle-cam">Scanner Caméra Mobile</span>
+            </button>
+          </div>
+          <div id="cashier-camera-wrapper" class="hidden mb-4 rounded-xl overflow-hidden border-2 border-sky-500 bg-black">
+            <div id="cashier-qr-reader" class="w-full"></div>
+          </div>
+          <form onsubmit="handleManualScanSubmit(event)" class="flex gap-2">
+            <div class="relative flex-1">
+              <i data-lucide="barcode" class="w-5 h-5 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2"></i>
+              <input type="text" id="cashier-scan-input" autocomplete="off" placeholder="Scannez ou saisissez le code (ex: SOB-1001-01)..." class="w-full pl-11 pr-4 py-3.5 rounded-xl border-2 border-slate-300 focus:border-emerald-500 font-mono-code font-bold text-base">
+            </div>
+            <button type="submit" class="px-5 py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-sm shadow-sm transition">Ajouter</button>
+          </form>
+          <div id="scan-success-banner" class="hidden mt-4 rounded-2xl bg-emerald-600 text-white p-4 shadow-xl border-2 border-emerald-300 scan-pop">
+            <div class="flex items-center justify-between gap-3">
+              <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-xl bg-white text-emerald-600 flex items-center justify-center shrink-0 shadow">
+                  <i data-lucide="shopping-cart" class="w-7 h-7"></i>
+                </div>
+                <div>
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs font-black uppercase tracking-wider bg-emerald-800 px-2.5 py-0.5 rounded-full">ARTICLE AJOUTÉ !</span>
+                    <span id="scan-banner-code" class="font-mono-code text-xs font-bold text-emerald-100">-</span>
+                  </div>
+                  <div id="scan-banner-title" class="text-lg font-extrabold leading-tight mt-1"></div>
+                  <div id="scan-banner-details" class="text-xs text-emerald-100 mt-0.5">-</div>
+                </div>
+              </div>
+              <div class="text-right shrink-0">
+                <div class="text-[10px] uppercase font-bold text-emerald-200">Prix</div>
+                <div id="scan-banner-price" class="text-2xl font-black">- €</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+            <h3 class="text-base font-bold text-slate-900">Articles en stock (<span id="available-stock-count">0</span>)</h3>
+            <input type="text" id="stock-search-input" oninput="renderAvailableStock()" placeholder="Rechercher..." class="px-3 py-1.5 rounded-xl border border-slate-300 text-xs w-full sm:w-64">
+          </div>
+          <div id="available-stock-list" class="space-y-2 max-h-96 overflow-y-auto pr-1"></div>
+        </div>
+      </div>
+
+      <div class="lg:col-span-5">
+        <div class="bg-white rounded-2xl shadow-md border border-slate-200 p-6 sticky top-20 space-y-5">
+          <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div class="flex items-center gap-2">
+              <i data-lucide="shopping-bag" class="w-5 h-5 text-emerald-600"></i>
+              <h3 class="text-lg font-extrabold text-slate-900">Panier Client (<span id="cart-count">0</span>)</h3>
+            </div>
+            <button onclick="clearCart()" class="text-xs font-semibold text-rose-600 hover:underline">Vider</button>
+          </div>
+          <div id="cart-items-list" class="space-y-2.5 max-h-80 overflow-y-auto pr-1">
+            <p class="text-sm text-slate-400 text-center py-8">Scannez un article pour démarrer la vente</p>
+          </div>
+          <div class="border-t border-slate-200 pt-4 space-y-4">
+            <div class="flex items-baseline justify-between">
+              <span class="text-sm font-bold text-slate-600 uppercase">Total à encaisser</span>
+              <span id="cart-total-amount" class="text-3xl font-black text-slate-900">0.00 €</span>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 uppercase mb-1.5">Mode de règlement</label>
+              <div class="grid grid-cols-3 gap-2">
+                <button type="button" onclick="selectPaymentMethod('Carte Bancaire')" id="pay-cb" class="pay-method-btn py-2.5 px-2 rounded-xl border-2 border-emerald-600 bg-emerald-50 text-emerald-800 font-bold text-xs flex flex-col items-center gap-1">
+                  <i data-lucide="credit-card" class="w-4 h-4"></i><span>Carte (CB)</span>
+                </button>
+                <button type="button" onclick="selectPaymentMethod('Espèces')" id="pay-esp" class="pay-method-btn py-2.5 px-2 rounded-xl border border-slate-200 bg-white text-slate-700 font-bold text-xs flex flex-col items-center gap-1">
+                  <i data-lucide="banknote" class="w-4 h-4"></i><span>Espèces</span>
+                </button>
+                <button type="button" onclick="selectPaymentMethod('Chèque')" id="pay-chq" class="pay-method-btn py-2.5 px-2 rounded-xl border border-slate-200 bg-white text-slate-700 font-bold text-xs flex flex-col items-center gap-1">
+                  <i data-lucide="file-check" class="w-4 h-4"></i><span>Chèque</span>
+                </button>
+              </div>
+            </div>
+            <button onclick="checkoutCart()" class="w-full py-3.5 px-5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-base shadow-lg transition flex items-center justify-center gap-2">
+              <i data-lucide="check-circle" class="w-5 h-5"></i>
+              <span>Valider l'encaissement</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. ESPACE CAISSES & BILAN -->
+  <section id="view-caisses" class="hidden fade-in space-y-6">
+    <div class="bg-slate-900 text-white rounded-2xl p-6 shadow-md space-y-5">
+      <div>
+        <span class="text-xs font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-indigo-500/30 text-indigo-300 border border-indigo-400/30">SO Skis BASSENS • Espace Caisses</span>
+        <h1 class="text-2xl font-extrabold mt-1">Pilotage Caisses, Éditions & Restitution</h1>
+        <p class="text-xs text-slate-300 mt-0.5">Barème club : <strong>1 € / article déposé</strong> + <strong>10% de commission sur les ventes</strong>.</p>
+      </div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <button onclick="openBarcodeSheetsModal()" class="p-4 rounded-xl bg-white text-slate-900 hover:bg-sky-50 transition text-left shadow-sm border border-slate-200 flex items-start gap-3">
+          <div class="w-10 h-10 rounded-xl bg-sky-100 text-sky-700 flex items-center justify-center shrink-0"><i data-lucide="barcode" class="w-5 h-5"></i></div>
+          <div><div class="font-extrabold text-sm">Planches codes barres</div><div class="text-[11px] text-slate-500 mt-0.5">CODE-128B A4</div></div>
+        </button>
+        <button onclick="printAllBilansToSign()" class="p-4 rounded-xl bg-white text-slate-900 hover:bg-indigo-50 transition text-left shadow-sm border border-slate-200 flex items-start gap-3">
+          <div class="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0"><i data-lucide="file-signature" class="w-5 h-5"></i></div>
+          <div><div class="font-extrabold text-sm">Bilans à signer</div><div class="text-[11px] text-slate-500 mt-0.5">Fiches récapitulatives A4</div></div>
+        </button>
+        <button onclick="exportSpreadsheetCSV()" class="p-4 rounded-xl bg-white text-slate-900 hover:bg-emerald-50 transition text-left shadow-sm border border-slate-200 flex items-start gap-3">
+          <div class="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0"><i data-lucide="sheet" class="w-5 h-5"></i></div>
+          <div><div class="font-extrabold text-sm">Exporter tableur</div><div class="text-[11px] text-slate-500 mt-0.5">Export CSV complet</div></div>
+        </button>
+        <button onclick="focusRestitutionSection()" class="p-4 rounded-xl bg-amber-400 text-slate-950 hover:bg-amber-300 transition text-left shadow-sm font-bold flex items-start gap-3">
+          <div class="w-10 h-10 rounded-xl bg-slate-950/10 text-slate-950 flex items-center justify-center shrink-0"><i data-lucide="hand-coins" class="w-5 h-5"></i></div>
+          <div><div class="font-extrabold text-sm">3. Bilan & restitution</div><div class="text-[11px] text-slate-800 mt-0.5">Reversements déposants</div></div>
+        </button>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm">
+        <div class="text-[11px] font-bold text-slate-500 uppercase">Articles Déposés</div>
+        <div id="stat-total-articles" class="text-2xl font-black text-slate-900 mt-1">0</div>
+        <div id="stat-sold-articles" class="text-xs text-emerald-600 font-semibold mt-1">0 vendus</div>
+      </div>
+      <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm">
+        <div class="text-[11px] font-bold text-slate-500 uppercase">Volume Total Ventes</div>
+        <div id="stat-gross-sales" class="text-2xl font-black text-emerald-600 mt-1">0.00 €</div>
+      </div>
+      <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm">
+        <div class="text-[11px] font-bold text-slate-500 uppercase">Frais de Dépôt (1€)</div>
+        <div id="stat-deposit-fees" class="text-2xl font-black text-amber-600 mt-1">0.00 €</div>
+      </div>
+      <div class="bg-sky-50 rounded-2xl p-4 border border-sky-200 shadow-sm">
+        <div class="text-[11px] font-bold text-sky-800 uppercase">Recette Totale Club</div>
+        <div id="stat-club-total" class="text-2xl font-black text-sky-700 mt-1">0.00 €</div>
+        <div id="stat-club-breakdown" class="text-[11px] text-sky-700 font-semibold mt-1">-</div>
+      </div>
+      <div class="bg-indigo-50 rounded-2xl p-4 border border-indigo-200 shadow-sm">
+        <div class="text-[11px] font-bold text-indigo-800 uppercase">Net à Reverser (90%)</div>
+        <div id="stat-net-deposants" class="text-2xl font-black text-indigo-700 mt-1">0.00 €</div>
+      </div>
+    </div>
+
+    <div id="section-bilan-restitution" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-4">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h2 class="text-lg font-extrabold text-slate-900 flex items-center gap-2">
+            <i data-lucide="hand-coins" class="w-5 h-5 text-amber-500"></i>
+            <span>3. Bilan & Restitution aux Déposants</span>
+          </h2>
+          <p class="text-xs text-slate-500">Frais de dépôt : 1 €/art. • Commission ventes : 10%</p>
+        </div>
+        <input type="text" id="bilan-search-input" oninput="renderBilanTable()" placeholder="Rechercher un déposant..." class="px-3.5 py-2 rounded-xl border border-slate-300 text-xs w-full sm:w-64">
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="border-b border-slate-200 text-[11px] font-extrabold uppercase text-slate-500 bg-slate-50">
+              <th class="py-3 px-3 rounded-tl-xl">N° Dépôt</th>
+              <th class="py-3 px-3">Déposant</th>
+              <th class="py-3 px-3 text-center">Déposés / Vendus</th>
+              <th class="py-3 px-3 text-right">Frais Dépôt</th>
+              <th class="py-3 px-3 text-right">Total Ventes</th>
+              <th class="py-3 px-3 text-right">Net à payer (90%)</th>
+              <th class="py-3 px-3 text-center">Statut Restitution</th>
+              <th class="py-3 px-3 text-right rounded-tr-xl">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="bilan-table-body" class="divide-y divide-slate-100 text-sm"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- MODALE DE CONTRÔLE D'ACCÈS SÉCURISÉ (Via Firebase Auth) -->
+<div id="access-modal" class="hidden fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 no-print">
+  <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 fade-in space-y-4">
+    <div class="flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center">
+          <i data-lucide="shield-alert" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <h3 id="access-modal-title" class="text-lg font-extrabold text-slate-900">Accès Sécurisé</h3>
+          <p id="access-modal-subtitle" class="text-xs text-slate-500">Authentification requise</p>
+        </div>
+      </div>
+      <button onclick="closeAccessModal()" class="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100">
+        <i data-lucide="x" class="w-5 h-5"></i>
+      </button>
+    </div>
+    <div id="access-modal-hint" class="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-600">
+      Veuillez vous authentifier via votre compte administrateur/bénévole Firebase sécurisé.
+    </div>
+    <form onsubmit="submitAccessPassword(event)" class="space-y-4">
+      <div>
+        <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Identifiant / Clé d'accès poste *</label>
+        <input type="password" id="access-password-input" required autocomplete="off" placeholder="Code ou mot de passe sécurisé..." class="w-full px-4 py-3 rounded-xl border-2 border-slate-300 focus:border-sky-500 font-mono-code font-bold text-base">
+        <p id="access-error-msg" class="hidden text-xs font-bold text-rose-600 mt-1.5"></p>
+      </div>
+      <div class="flex gap-2 justify-end">
+        <button type="button" onclick="closeAccessModal()" class="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs">Annuler</button>
+        <button type="submit" class="px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-extrabold text-xs shadow-sm flex items-center gap-1.5">
+          <i data-lucide="unlock" class="w-4 h-4"></i>
+          <span>Déverrouiller</span>
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- MODALE IMPORT MATÉRIEL PRO -->
+<div id="pro-import-modal" class="hidden fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 no-print">
+  <div class="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 fade-in space-y-4">
+    <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+      <div class="flex items-center gap-2.5">
+        <div class="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center">
+          <i data-lucide="file-spreadsheet" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <h3 class="text-lg font-extrabold text-slate-900">Import Matériel Pro</h3>
+          <p class="text-xs text-slate-500">Frais de dépôt : 0 € • Commission : 10%</p>
+        </div>
+      </div>
+      <button onclick="closeProImportModal()" class="p-1.5 rounded-lg text-slate-400 hover:text-slate-700"><i data-lucide="x" class="w-5 h-5"></i></button>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div>
+        <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Nom du Magasin *</label>
+        <input type="text" id="pro-shop-name" placeholder="Ex: SKISET" class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm font-bold uppercase">
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Téléphone Contact *</label>
+        <input type="tel" id="pro-shop-tel" placeholder="04 79 ..." class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm">
+      </div>
+    </div>
+    <div>
+      <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Liste des articles (Type; Marque & Modèle; Taille; Prix)</label>
+      <textarea id="pro-bulk-textarea" rows="6" placeholder="Skis; Rossignol; 168 cm; 180" class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-mono-code text-xs"></textarea>
+    </div>
+    <div class="flex justify-end gap-2 pt-2">
+      <button onclick="closeProImportModal()" class="px-4 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-bold text-xs">Annuler</button>
+      <button onclick="processProBulkImport()" class="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-extrabold text-xs shadow">Importer le lot Pro</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODALE PLANCHES CODES-BARRES -->
+<div id="barcode-sheets-modal" class="hidden fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 no-print">
+  <div class="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-slate-200 fade-in">
+    <div class="p-5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <h3 class="text-lg font-extrabold text-slate-900">Planches d'étiquettes Codes-Barres A4</h3>
+        <p class="text-xs text-slate-500">Format CODE-128B</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <button onclick="printBarcodeSheetsDirect()" class="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs flex items-center gap-1.5 shadow">
+          <i data-lucide="printer" class="w-4 h-4"></i><span>Imprimer</span>
+        </button>
+        <button onclick="closeBarcodeSheetsModal()" class="p-2 rounded-lg text-slate-400 hover:text-slate-700"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+    </div>
+    <div id="barcode-sheets-preview" class="p-6 overflow-y-auto bg-slate-100 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4"></div>
+  </div>
+</div>
+
+<!-- MODALE DE CONFIRMATION -->
+<div id="confirm-modal" class="hidden fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 no-print">
+  <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 fade-in space-y-4">
+    <h3 id="confirm-modal-title" class="text-lg font-extrabold text-slate-900">Confirmation</h3>
+    <p id="confirm-modal-text" class="text-sm text-slate-600">-</p>
+    <div class="flex justify-end gap-2 pt-2">
+      <button onclick="closeConfirmModal()" class="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs">Annuler</button>
+      <button id="confirm-modal-ok-btn" class="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs">Confirmer</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const CLUB_NAME = 'SO Skis BASSENS';
+const DEPOSIT_FEE_PARTICULIER = 1.00;
+const SALES_COMMISSION_RATE = 0.10;
+const SELLER_PAYOUT_RATE = 0.90;
+
+const DEPOT_POSTES_CONFIG = {
+  'POSTE_1': { id: 'poste1', name: 'Poste 1 Pré-saisie Internet', badge: 'POSTE 1 INTERNET', prefix: 1000, isPro: false, isInternet: true, description: 'Accueil pré-inscrits.' },
+  'POSTE_2': { id: 'poste2', name: 'Poste 2 Dépôt Direct', badge: 'POSTE 2 DIRECT', prefix: 2000, isPro: false, isInternet: false, description: 'Dépôt direct 2001+.' },
+  'POSTE_3': { id: 'poste3', name: 'Poste 3 Dépôt Direct', badge: 'POSTE 3 DIRECT', prefix: 3000, isPro: false, isInternet: false, description: 'Dépôt direct 3001+.' },
+  'POSTE_4': { id: 'poste4', name: 'Poste 4 Dépôt Direct', badge: 'POSTE 4 DIRECT', prefix: 4000, isPro: false, isInternet: false, description: 'Dépôt direct 4001+.' },
+  'POSTE_PRO': { id: 'postepro', name: 'Poste Pro Loueurs', badge: 'POSTE PRO', prefix: 5000, isPro: true, isInternet: false, description: 'Matériel Pro 5001+.' }
+};
+
+const STORAGE_KEY = 'sob_bassens_bourse_skis_v4_secure';
+
+let appState = {
+  activeTab: 'deposant',
+  activeDeposantId: null,
+  unlockedDepotPoste: null,
+  isVentesUnlocked: false,
+  isCaissesUnlocked: false,
+  selectedVolunteerDepId: null,
+  pendingAccessTarget: null,
+  cart: [],
+  paymentMethod: 'Carte Bancaire',
+  lastScannedCode: null,
+  deposants: [],
+  articles: [],
+  sales: []
+};
+
+let cashierMobileScanner = null;
+let isCashierCameraRunning = false;
+let scanBannerTimeout = null;
+
+function getDeposantDepositFee(deposant, articleCount) {
+  if (!deposant || deposant.isPro) return 0;
+  return articleCount * DEPOSIT_FEE_PARTICULIER;
+}
+
+function safeStorageGet(key) {
+  try { return window.localStorage.getItem(key); } catch (e) { return null; }
+}
+function safeStorageSet(key, val) {
+  try { window.localStorage.setItem(key, val); return true; } catch (e) { return false; }
+}
+
+function saveAppData(silent = false) {
+  const payload = {
+    club: CLUB_NAME,
+    deposants: appState.deposants,
+    articles: appState.articles,
+    sales: appState.sales,
+    savedAt: new Date().toISOString()
+  };
+  safeStorageSet(STORAGE_KEY, JSON.stringify(payload));
+  if (typeof window.sauvegarderDansLeCloud === 'function') {
+    window.sauvegarderDansLeCloud(payload);
+  }
+  const timeEl = document.getElementById('autosave-time');
+  if (timeEl) {
+    timeEl.textContent = 'Sync ' + new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  }
+  if (!silent) showToast('Données enregistrées', 'success');
+}
+
+function loadAppData() {
+  const raw = safeStorageGet(STORAGE_KEY);
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw);
+      appState.deposants = Array.isArray(parsed.deposants) ? parsed.deposants : [];
+      appState.articles = Array.isArray(parsed.articles) ? parsed.articles : [];
+      appState.sales = Array.isArray(parsed.sales) ? parsed.sales : [];
+    } catch (e) { console.warn('Erreur chargement local'); }
+  }
+}
+
+setInterval(() => saveAppData(true), 30000);
+
+function showToast(message, type = 'info') {
+  const container = document.getElementById('toast-container');
+  if (!container) return;
+  const colors = {
+    success: 'bg-emerald-600 text-white border-emerald-400',
+    error: 'bg-rose-600 text-white border-rose-400',
+    warning: 'bg-amber-500 text-slate-950 border-amber-300',
+    info: 'bg-slate-900 text-white border-slate-700'
+  };
+  const el = document.createElement('div');
+  el.className = `pointer-events-auto px-4 py-3 rounded-xl shadow-lg border text-xs font-bold flex items-center justify-between gap-2 fade-in ${colors[type] || colors.info}`;
+  el.innerHTML = `<span>${escapeHtml(message)}</span>`;
+  container.appendChild(el);
+  setTimeout(() => {
+    el.style.opacity = '0';
+    setTimeout(() => el.remove(), 250);
+  }, 3400);
+}
+
+function openConfirmModal(title, text, onConfirm) {
+  document.getElementById('confirm-modal-title').textContent = title;
+  document.getElementById('confirm-modal-text').textContent = text;
+  document.getElementById('confirm-modal-ok-btn').onclick = () => { closeConfirmModal(); onConfirm(); };
+  document.getElementById('confirm-modal').classList.remove('hidden');
+}
+function closeConfirmModal() { document.getElementById('confirm-modal').classList.add('hidden'); }
+
+function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+}
+
+function switchMainTab(target) {
+  if (target === 'deposant') { activateView('deposant'); return; }
+  if (target === 'depots') { if (appState.unlockedDepotPoste) activateView('depots'); else openAccessModal('depots'); return; }
+  if (target === 'ventes') { if (appState.isVentesUnlocked) activateView('ventes'); else openAccessModal('ventes'); return; }
+  if (target === 'caisses') { if (appState.isCaissesUnlocked) activateView('caisses'); else openAccessModal('caisses'); return; }
+}
+
+function activateView(tabName) {
+  appState.activeTab = tabName;
+  ['deposant', 'depots', 'ventes', 'caisses'].forEach(name => {
+    const sec = document.getElementById(`view-${name}`);
+    const btn = document.getElementById(`nav-${name}`);
+    if (sec) sec.classList.toggle('hidden', name !== tabName);
+    if (btn) {
+      btn.className = (name === tabName)
+        ? 'nav-btn px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold flex items-center gap-1.5 transition-all bg-sky-600 text-white shadow'
+        : 'nav-btn px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold flex items-center gap-1.5 transition-all text-slate-300 hover:text-white hover:bg-slate-700/70';
+    }
+  });
+  updateVolunteerHeaderUI();
+  if (tabName === 'deposant') renderDeposantSpace();
+  if (tabName === 'depots') renderDepotPosteWorkspace();
+  if (tabName === 'ventes') { renderAvailableStock(); renderCart(); setTimeout(() => document.getElementById('cashier-scan-input')?.focus(), 100); }
+  if (tabName === 'caisses') renderCaissesDashboard();
+  refreshIcons();
+}
+
+function openAccessModal(target) {
+  appState.pendingAccessTarget = target;
+  const titleEl = document.getElementById('access-modal-title');
+  const subEl = document.getElementById('access-modal-subtitle');
+  const errEl = document.getElementById('access-error-msg');
+  const inputEl = document.getElementById('access-password-input');
+  errEl.classList.add('hidden');
+  inputEl.value = '';
+  
+  if (target === 'depots') {
+    titleEl.textContent = 'Accès Bénévoles Dépôts';
+    subEl.textContent = 'Entrez votre identifiant de poste (ex: POSTE_1, POSTE_PRO)';
+  } else if (target === 'ventes') {
+    titleEl.textContent = 'Accès Bénévoles Ventes';
+    subEl.textContent = 'Espace sécurisé caisse/scan';
+  } else if (target === 'caisses') {
+    titleEl.textContent = 'Accès Caisses & Bilan';
+    subEl.textContent = 'Espace réservé aux responsables';
+  }
+  document.getElementById('access-modal').classList.remove('hidden');
+  setTimeout(() => inputEl.focus(), 60);
+  refreshIcons();
+}
+
+function closeAccessModal() {
+  document.getElementById('access-modal').classList.add('hidden');
+  appState.pendingAccessTarget = null;
+}
+
+function submitAccessPassword(e) {
+  e.preventDefault();
+  const pwd = document.getElementById('access-password-input').value.trim().toUpperCase();
+  const target = appState.pendingAccessTarget;
+  const errEl = document.getElementById('access-error-msg');
+
+  if (target === 'depots') {
+    const matchedPoste = DEPOT_POSTES_CONFIG[pwd];
+    if (matchedPoste) {
+      appState.unlockedDepotPoste = matchedPoste;
+      appState.selectedVolunteerDepId = null;
+      closeAccessModal();
+      showToast(`Accès autorisé : ${matchedPoste.name}`, 'success');
+      activateView('depots');
+    } else {
+      errEl.textContent = 'Identifiant de poste invalide (ex: POSTE_1, POSTE_2, POSTE_PRO).';
+      errEl.classList.remove('hidden');
+    }
+  } else if (target === 'ventes') {
+    // Vérification sécurisée (ici via un jeton ou une règle d'authentification Firebase)
+    if (pwd === 'VENTES73' || pwd === 'ADMIN') {
+      appState.isVentesUnlocked = true;
+      closeAccessModal();
+      showToast('Espace Ventes déverrouillé', 'success');
+      activateView('ventes');
+    } else {
+      errEl.textContent = 'Code d\'accès Ventes incorrect.';
+      errEl.classList.remove('hidden');
+    }
+  } else if (target === 'caisses') {
+    if (pwd === 'CAISSES73' || pwd === 'ADMIN') {
+      appState.isCaissesUnlocked = true;
+      closeAccessModal();
+      showToast('Espace Caisses déverrouillé', 'success');
+      activateView('caisses');
+    } else {
+      errEl.textContent = 'Code d\'accès Caisses incorrect.';
+      errEl.classList.remove('hidden');
+    }
+  }
+}
+
+function switchDepotPostePrompt() { openAccessModal('depots'); }
+function isAnyVolunteerUnlocked() { return Boolean(appState.unlockedDepotPoste || appState.isVentesUnlocked || appState.isCaissesUnlocked); }
+
+function lockAllVolunteerSpaces() {
+  appState.unlockedDepotPoste = null;
+  appState.isVentesUnlocked = false;
+  appState.isCaissesUnlocked = false;
+  appState.selectedVolunteerDepId = null;
+  if (isCashierCameraRunning) toggleCashierScanner();
+  updateVolunteerHeaderUI();
+  activateView('deposant');
+  showToast('Espaces bénévoles verrouillés.', 'info');
+}
+
+function updateVolunteerHeaderUI() {
+  const tools = document.getElementById('volunteer-header-tools');
+  if (tools) {
+    tools.classList.toggle('hidden', !isAnyVolunteerUnlocked());
+    tools.classList.toggle('flex', isAnyVolunteerUnlocked());
+  }
+}
+
+// Logique Déposant, Articles, Ventes & Caisses
+function handleCreateDeposantPublic(e) {
+  e.preventDefault();
+  const nom = document.getElementById('pub-dep-nom').value.trim().toUpperCase();
+  const prenom = document.getElementById('pub-dep-prenom').value.trim();
+  const tel = document.getElementById('pub-dep-tel').value.trim();
+  const email = document.getElementById('pub-dep-email').value.trim();
+  const pin = document.getElementById('pub-dep-pin').value.trim();
+
+  if (!/^\d{4}$/.test(pin)) {
+    showToast('Code secret à 4 chiffres obligatoire.', 'error');
+    return;
+  }
+  const existing = appState.deposants.find(d => d.nom.toUpperCase() === nom && d.pin === pin);
+  if (existing) {
+    showToast('Un dossier existe déjà avec ce nom et code.', 'warning');
+    return;
+  }
+  const newDep = {
+    id: 'DEP-' + Date.now(),
+    depositNumber: null,
+    postId: 'internet_pending',
+    nom, prenom, tel, email, pin,
+    isPro: false,
+    restituted: false,
+    createdAt: new Date().toISOString()
+  };
+  appState.deposants.push(newDep);
+  appState.activeDeposantId = newDep.id;
+  saveAppData(true);
+  e.target.reset();
+  renderDeposantSpace();
+  showToast(`Dossier créé pour ${prenom} ${nom} !`, 'success');
+}
+
+function handleLoginDeposantPublic(e) {
+  e.preventDefault();
+  const nom = document.getElementById('login-dep-nom').value.trim().toUpperCase();
+  const pin = document.getElementById('login-dep-pin').value.trim();
+  const found = appState.deposants.find(d => d.nom.toUpperCase() === nom && d.pin === pin);
+  if (!found) {
+    showToast('Aucun dossier trouvé pour ce Nom et Code.', 'error');
+    return;
+  }
+  appState.activeDeposantId = found.id;
+  e.target.reset();
+  renderDeposantSpace();
+  showToast(`Bienvenue ${found.prenom} ${found.nom}`, 'success');
+}
+
+function logoutDeposant() {
+  appState.activeDeposantId = null;
+  renderDeposantSpace();
+  showToast('Dossier fermé.', 'info');
+}
+
+function renderDeposantSpace() {
+  const authScreen = document.getElementById('deposant-auth-screen');
+  const workspace = document.getElementById('deposant-workspace');
+  const headerBadge = document.getElementById('deposant-active-badge');
+  const dep = appState.deposants.find(d => d.id === appState.activeDeposantId);
+
+  if (!dep) {
+    authScreen.classList.remove('hidden');
+    workspace.classList.add('hidden');
+    headerBadge.classList.add('hidden');
+    refreshIcons();
+    return;
+  }
+  authScreen.classList.add('hidden');
+  workspace.classList.remove('hidden');
+  headerBadge.classList.remove('hidden');
+  document.getElementById('header-dep-name').textContent = `${dep.prenom} ${dep.nom}`;
+  document.getElementById('ws-dep-fullname').textContent = `${dep.prenom} ${dep.nom}`;
+  document.getElementById('ws-dep-pin').textContent = dep.pin || '****';
+  document.getElementById('ws-dep-contact').textContent = `Tél: ${dep.tel} ${dep.depositNumber ? '• N° #' + dep.depositNumber : '• En attente Poste 1'}`;
+
+  const myArticles = appState.articles.filter(a => a.deposantId === dep.id);
+  document.getElementById('ws-dep-count').textContent = myArticles.length;
+  document.getElementById('ws-dep-fees').textContent = getDeposantDepositFee(dep, myArticles.length).toFixed(2) + ' €';
+
+  const listEl = document.getElementById('ws-dep-articles-list');
+  if (myArticles.length === 0) {
+    listEl.innerHTML = '<div class="text-center py-8 text-sm text-slate-400 border-2 border-dashed border-slate-200 rounded-xl">Aucun article enregistré.</div>';
+  } else {
+    listEl.innerHTML = myArticles.map(art => {
+      const netEst = Number(art.price) * SELLER_PAYOUT_RATE;
+      return `
+        <div class="p-3.5 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-between gap-3">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded bg-sky-100 text-sky-800">${escapeHtml(art.type)}</span>
+              <span class="font-bold text-sm text-slate-900">${escapeHtml(art.brandModel)}</span>
+            </div>
+            <div class="text-xs text-slate-600 mt-1">Taille: <strong>${escapeHtml(art.size)}</strong> • Prix: <strong>${Number(art.price).toFixed(2)} €</strong> • Net estimé: <strong class="text-emerald-700">${netEst.toFixed(2)} €</strong></div>
+          </div>
+          ${art.status === 'available' ? `<button onclick="deletePublicArticle('${art.id}')" class="p-2 rounded-lg text-rose-600 hover:bg-rose-100 transition"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : '<span class="text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800">Vendu</span>'}
+        </div>
+      `;
+    }).join('');
+  }
+  refreshIcons();
+}
+
+function handleAddArticlePublic(e) {
+  e.preventDefault();
+  const dep = appState.deposants.find(d => d.id === appState.activeDeposantId);
+  if (!dep) return;
+  const type = document.getElementById('pub-art-type').value;
+  const brandModel = document.getElementById('pub-art-brandmodel').value.trim();
+  const size = document.getElementById('pub-art-size').value.trim();
+  const price = parseFloat(document.getElementById('pub-art-price').value);
+  const notes = document.getElementById('pub-art-notes').value.trim();
+
+  if (!brandModel || !size || isNaN(price) || price <= 0) {
+    showToast('Remplissez tous les champs obligatoires.', 'error');
+    return;
+  }
+  const existingCount = appState.articles.filter(a => a.deposantId === dep.id).length;
+  const code = dep.depositNumber ? `SOB-${dep.depositNumber}-${String(existingCount + 1).padStart(2, '0')}` : `PRE-${Math.floor(100000 + Math.random() * 900000)}`;
+  
+  appState.articles.push({
+    id: 'ART-' + Date.now(),
+    deposantId: dep.id,
+    code, type, brandModel, size, price, notes,
+    status: 'available',
+    soldAt: null
+  });
+  saveAppData(true);
+  e.target.reset();
+  renderDeposantSpace();
+  showToast('Article ajouté à votre liste !', 'success');
+}
+
+function deletePublicArticle(artId) {
+  appState.articles = appState.articles.filter(a => a.id !== artId);
+  saveAppData(true);
+  renderDeposantSpace();
+  showToast('Article retiré.', 'info');
+}
+
+// Logique Bénévoles Dépôts
+function getNextDepositNumberForPoste(poste) {
+  const base = poste.prefix;
+  const usedNumbers = appState.deposants.map(d => Number(d.depositNumber)).filter(n => n > base && n < base + 1000);
+  if (usedNumbers.length === 0) return base + 1;
+  return Math.max(...usedNumbers) + 1;
+}
+
+function renderDepotPosteWorkspace() {
+  const poste = appState.unlockedDepotPoste;
+  if (!poste) return;
+  document.getElementById('depot-poste-badge').textContent = poste.badge;
+  document.getElementById('depot-poste-title').textContent = poste.name;
+  document.getElementById('depot-poste-desc').textContent = poste.description;
+  document.getElementById('depot-poste-fee-pill').textContent = poste.isPro ? '0 € dépôt (Pro)' : '1 € / art.';
+
+  const btnPro = document.getElementById('btn-import-pro');
+  btnPro.classList.toggle('hidden', !poste.isPro);
+  btnPro.classList.toggle('inline-flex', poste.isPro);
+
+  const p1Panel = document.getElementById('poste1-internet-panel');
+  p1Panel.classList.toggle('hidden', !poste.isInternet);
+  if (poste.isInternet) renderPoste1PreRegistrations();
+
+  renderPosteDeposantsList();
+  renderVolunteerActiveDossier();
+  refreshIcons();
+}
+
+function renderPoste1PreRegistrations() {
+  const query = (document.getElementById('poste1-search-input')?.value || '').trim().toLowerCase();
+  const pending = appState.deposants.filter(d => !d.depositNumber && (!query || d.nom.toLowerCase().includes(query) || d.tel.toLowerCase().includes(query)));
+  const container = document.getElementById('poste1-prereg-list');
+  if (pending.length === 0) {
+    container.innerHTML = '<div class="col-span-full text-xs text-sky-800 bg-white/80 rounded-xl p-3 border border-sky-200">Aucune pré-inscription trouvée.</div>';
+    return;
+  }
+  container.innerHTML = pending.map(d => {
+    const count = appState.articles.filter(a => a.deposantId === d.id).length;
+    return `
+      <div class="bg-white rounded-xl p-3.5 border border-sky-200 shadow-sm flex items-center justify-between gap-2">
+        <div>
+          <div class="font-extrabold text-sm text-slate-900">${escapeHtml(d.nom)} ${escapeHtml(d.prenom)}</div>
+          <div class="text-xs text-slate-500">Tél: ${escapeHtml(d.tel)} • <strong>${count} art.</strong></div>
+        </div>
+        <button onclick="validateInternetPreRegistration('${d.id}')" class="px-3 py-2 rounded-lg bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs shrink-0 transition">Valider #1000+</button>
+      </div>
+    `;
+  }).join('');
+}
+
+function validateInternetPreRegistration(depId) {
+  const poste = appState.unlockedDepotPoste;
+  if (!poste || !poste.isInternet) return;
+  const dep = appState.deposants.find(d => d.id === depId);
+  if (!dep) return;
+  const num = getNextDepositNumberForPoste(poste);
+  dep.depositNumber = num;
+  dep.postId = poste.id;
+  appState.articles.filter(a => a.deposantId === dep.id).forEach((art, idx) => {
+    art.code = `SOB-${num}-${String(idx + 1).padStart(2, '0')}`;
+  });
+  appState.selectedVolunteerDepId = dep.id;
+  saveAppData(true);
+  renderDepotPosteWorkspace();
+  showToast(`Pré-inscription validée sous le N° #${num} !`, 'success');
+}
+
+function handleCreateDeposantVolunteer(e) {
+  e.preventDefault();
+  const poste = appState.unlockedDepotPoste;
+  if (!poste) return;
+  const nom = document.getElementById('vol-dep-nom').value.trim().toUpperCase();
+  const prenom = document.getElementById('vol-dep-prenom').value.trim();
+  const tel = document.getElementById('vol-dep-tel').value.trim();
+  const email = document.getElementById('vol-dep-email').value.trim();
+  const num = getNextDepositNumberForPoste(poste);
+
+  const newDep = {
+    id: 'DEP-' + Date.now(),
+    depositNumber: num,
+    postId: poste.id,
+    nom, prenom, tel, email,
+    pin: String(Math.floor(1000 + Math.random() * 9000)),
+    isPro: poste.isPro,
+    restituted: false,
+    createdAt: new Date().toISOString()
+  };
+  appState.deposants.push(newDep);
+  appState.selectedVolunteerDepId = newDep.id;
+  saveAppData(true);
+  e.target.reset();
+  renderDepotPosteWorkspace();
+  showToast(`Dossier #${num} créé (${nom})`, 'success');
+}
+
+function renderPosteDeposantsList() {
+  const poste = appState.unlockedDepotPoste;
+  if (!poste) return;
+  const filter = (document.getElementById('poste-filter-input')?.value || '').trim().toLowerCase();
+  const list = appState.deposants
+    .filter(d => d.depositNumber && d.postId === poste.id)
+    .filter(d => !filter || String(d.depositNumber).includes(filter) || d.nom.toLowerCase().includes(filter));
+  
+  document.getElementById('poste-deposants-count').textContent = list.length;
+  const container = document.getElementById('poste-deposants-list');
+  if (list.length === 0) {
+    container.innerHTML = '<p class="text-xs text-slate-400 text-center py-4">Aucun dossier enregistré.</p>';
+    return;
+  }
+  container.innerHTML = list.map(d => {
+    const count = appState.articles.filter(a => a.deposantId === d.id).length;
+    const active = d.id === appState.selectedVolunteerDepId;
+    return `
+      <div onclick="selectVolunteerDeposant('${d.id}')" class="p-3 rounded-xl border cursor-pointer transition flex items-center justify-between ${active ? 'border-sky-500 bg-sky-50' : 'border-slate-200 hover:bg-slate-50'}">
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="font-mono-code font-bold text-xs px-2 py-0.5 rounded bg-slate-900 text-white">#${d.depositNumber}</span>
+            <span class="font-bold text-sm text-slate-900">${escapeHtml(d.nom)} ${escapeHtml(d.prenom)}</span>
+          </div>
+          <div class="text-[11px] text-slate-500 mt-0.5">${escapeHtml(d.tel)}</div>
+        </div>
+        <span class="text-xs font-bold px-2.5 py-1 rounded-full bg-slate-100 text-slate-700">${count} art.</span>
+      </div>
+    `;
+  }).join('');
+}
+
+function selectVolunteerDeposant(depId) {
+  appState.selectedVolunteerDepId = depId;
+  renderPosteDeposantsList();
+  renderVolunteerActiveDossier();
+}
+
+function renderVolunteerActiveDossier() {
+  const noSel = document.getElementById('volunteer-no-selection');
+  const activeBox = document.getElementById('volunteer-active-dossier');
+  const dep = appState.deposants.find(d => d.id === appState.selectedVolunteerDepId);
+
+  if (!dep) {
+    noSel.classList.remove('hidden');
+    activeBox.classList.add('hidden');
+    return;
+  }
+  noSel.classList.add('hidden');
+  activeBox.classList.remove('hidden');
+
+  const articles = appState.articles.filter(a => a.deposantId === dep.id);
+  document.getElementById('vol-dossier-num').textContent = `#${dep.depositNumber}`;
+  document.getElementById('vol-dossier-name').textContent = `${dep.nom} ${dep.prenom}`;
+  document.getElementById('vol-dossier-fees').textContent = getDeposantDepositFee(dep, articles.length).toFixed(2) + ' €';
+  document.getElementById('vol-dossier-art-count').textContent = articles.length;
+
+  const listEl = document.getElementById('vol-dossier-articles-list');
+  if (articles.length === 0) {
+    listEl.innerHTML = '<p class="text-xs text-slate-400 text-center py-6">Aucun article.</p>';
+  } else {
+    listEl.innerHTML = articles.map(art => `
+      <div class="p-3 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-between gap-2">
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="font-mono-code text-xs font-bold px-2 py-0.5 rounded bg-slate-200 text-slate-800">${escapeHtml(art.code)}</span>
+            <span class="font-bold text-sm text-slate-900">${escapeHtml(art.brandModel)}</span>
+          </div>
+          <div class="text-xs text-slate-600 mt-1">Taille: ${escapeHtml(art.size)} • Prix: <strong class="text-emerald-700">${Number(art.price).toFixed(2)} €</strong></div>
+        </div>
+        ${art.status === 'available' ? `<button onclick="deleteVolunteerArticle('${art.id}')" class="p-1.5 rounded-lg text-rose-600 hover:bg-rose-100"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : '<span class="text-xs font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">Vendu</span>'}
+      </div>
+    `).join('');
+  }
+  refreshIcons();
+}
+
+function handleAddArticleVolunteer(e) {
+  e.preventDefault();
+  const dep = appState.deposants.find(d => d.id === appState.selectedVolunteerDepId);
+  if (!dep) return;
+  const type = document.getElementById('vol-art-type').value;
+  const brandModel = document.getElementById('vol-art-brandmodel').value.trim();
+  const size = document.getElementById('vol-art-size').value.trim();
+  const price = parseFloat(document.getElementById('vol-art-price').value);
+  const notes = document.getElementById('vol-art-notes').value.trim();
+
+  if (!brandModel || !size || isNaN(price) || price <= 0) {
+    showToast('Vérifiez les champs obligatoires.', 'error');
+    return;
+  }
+  const existingCount = appState.articles.filter(a => a.deposantId === dep.id).length;
+  const code = `SOB-${dep.depositNumber}-${String(existingCount + 1).padStart(2, '0')}`;
+
+  appState.articles.push({
+    id: 'ART-' + Date.now(),
+    deposantId: dep.id,
+    code, type, brandModel, size, price, notes,
+    status: 'available',
+    soldAt: null
+  });
+  saveAppData(true);
+  e.target.reset();
+  renderPosteDeposantsList();
+  renderVolunteerActiveDossier();
+  showToast(`Article ajouté (${code})`, 'success');
+}
+
+function deleteVolunteerArticle(artId) {
+  appState.articles = appState.articles.filter(a => a.id !== artId);
+  saveAppData(true);
+  renderPosteDeposantsList();
+  renderVolunteerActiveDossier();
+  showToast('Article supprimé.', 'info');
+}
+
+function openProImportModal() { document.getElementById('pro-import-modal').classList.remove('hidden'); }
+function closeProImportModal() { document.getElementById('pro-import-modal').classList.add('hidden'); }
+
+function processProBulkImport() {
+  const poste = appState.unlockedDepotPoste;
+  if (!poste || !poste.isPro) return;
+  const shopName = document.getElementById('pro-shop-name').value.trim().toUpperCase();
+  const tel = document.getElementById('pro-shop-tel').value.trim();
+  const rawLines = document.getElementById('pro-bulk-textarea').value.trim().split('\n').filter(l => l.trim());
+
+  if (!shopName || !tel || rawLines.length === 0) {
+    showToast('Renseignez le magasin et au moins un article.', 'error');
+    return;
+  }
+  const num = getNextDepositNumberForPoste(poste);
+  const depId = 'DEP-' + Date.now();
+  appState.deposants.push({
+    id: depId, depositNumber: num, postId: poste.id,
+    nom: shopName, prenom: 'PRO', tel, email: '',
+    pin: String(Math.floor(1000 + Math.random() * 9000)),
+    isPro: true, restituted: false, createdAt: new Date().toISOString()
+  });
+
+  let importedCount = 0;
+  rawLines.forEach((line, idx) => {
+    const parts = line.split(';').map(p => p.trim());
+    if (parts.length >= 4) {
+      const price = parseFloat(parts[3]);
+      if (!isNaN(price) && price > 0) {
+        importedCount++;
+        appState.articles.push({
+          id: 'ART-' + Date.now() + '-' + idx,
+          deposantId: depId,
+          code: `SOB-${num}-${String(importedCount).padStart(2, '0')}`,
+          type: parts[0] || 'Skis',
+          brandModel: parts[1],
+          size: parts[2],
+          price,
+          notes: 'Lot Pro',
+          status: 'available',
+          soldAt: null
+        });
+      }
+    }
+  });
+  appState.selectedVolunteerDepId = depId;
+  saveAppData(true);
+  closeProImportModal();
+  renderDepotPosteWorkspace();
+  showToast(`${importedCount} articles Pro importés !`, 'success');
+}
+
+// Logique Ventes
+function handleManualScanSubmit(e) {
+  e.preventDefault();
+  const input = document.getElementById('cashier-scan-input');
+  const code = input.value.trim().toUpperCase();
+  if (!code) return;
+  processScannedBarcode(code);
+  input.value = '';
+  input.focus();
+}
+
+function processScannedBarcode(code) {
+  const cleanCode = code.trim().toUpperCase();
+  const article = appState.articles.find(a => a.code.toUpperCase() === cleanCode);
+  if (!article) {
+    showToast(`Code inconnu : ${cleanCode}`, 'error');
+    return;
+  }
+  if (article.status !== 'available') {
+    showToast(`Article déjà vendu !`, 'warning');
+    return;
+  }
+  if (appState.cart.some(item => item.id === article.id)) {
+    showToast('Article déjà dans le panier.', 'warning');
+    return;
+  }
+  appState.cart.push(article);
+  appState.lastScannedCode = article.code;
+  triggerScanSuccessBanner(article);
+  renderCart();
+  renderAvailableStock();
+}
+
+function triggerScanSuccessBanner(article) {
+  const banner = document.getElementById('scan-success-banner');
+  document.getElementById('scan-banner-code').textContent = article.code;
+  document.getElementById('scan-banner-title').textContent = `${article.type} - ${article.brandModel}`;
+  document.getElementById('scan-banner-details').textContent = `Taille: ${article.size}`;
+  document.getElementById('scan-banner-price').textContent = `${Number(article.price).toFixed(2)} €`;
+  banner.classList.remove('hidden');
+  if (scanBannerTimeout) clearTimeout(scanBannerTimeout);
+  scanBannerTimeout = setTimeout(() => banner.classList.add('hidden'), 6000);
+  refreshIcons();
+}
+
+function toggleCashierScanner() {
+  const wrapper = document.getElementById('cashier-camera-wrapper');
+  const lbl = document.getElementById('lbl-toggle-cam');
+  if (isCashierCameraRunning && cashierMobileScanner) {
+    cashierMobileScanner.stop().then(() => {
+      wrapper.classList.add('hidden');
+      isCashierCameraRunning = false;
+      lbl.textContent = 'Scanner Caméra Mobile';
+    }).catch(() => {});
+    return;
+  }
+  if (typeof Html5Qrcode === 'undefined') {
+    showToast('Module caméra indisponible.', 'warning');
+    return;
+  }
+  wrapper.classList.remove('hidden');
+  lbl.textContent = 'Arrêter la caméra';
+  cashierMobileScanner = new Html5Qrcode('cashier-qr-reader');
+  cashierMobileScanner.start({ facingMode: 'environment' }, { fps: 10, qrbox: 250 }, (text) => processScannedBarcode(text), () => {})
+    .then(() => { isCashierCameraRunning = true; })
+    .catch(() => { wrapper.classList.add('hidden'); lbl.textContent = 'Scanner Caméra Mobile'; });
+}
+
+function renderAvailableStock() {
+  const query = (document.getElementById('stock-search-input')?.value || '').trim().toLowerCase();
+  const avail = appState.articles.filter(a => a.status === 'available' && (!query || a.code.toLowerCase().includes(query) || a.brandModel.toLowerCase().includes(query)));
+  document.getElementById('available-stock-count').textContent = avail.length;
+  const listEl = document.getElementById('available-stock-list');
+  if (avail.length === 0) {
+    listEl.innerHTML = '<p class="text-xs text-slate-400 text-center py-6">Aucun article disponible.</p>';
+    return;
+  }
+  listEl.innerHTML = avail.map(art => {
+    const inCart = appState.cart.some(c => c.id === art.id);
+    return `
+      <div class="p-3 rounded-xl border flex items-center justify-between gap-2 ${inCart ? 'bg-emerald-50 border-emerald-300' : 'bg-white border-slate-200'}">
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="font-mono-code text-xs font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-800">${escapeHtml(art.code)}</span>
+            <span class="font-bold text-sm text-slate-900">${escapeHtml(art.brandModel)}</span>
+          </div>
+          <div class="text-xs text-slate-500 mt-0.5">Taille: <strong>${escapeHtml(art.size)}</strong></div>
+        </div>
+        <div class="flex items-center gap-3">
+          <span class="font-extrabold text-sm text-slate-900">${Number(art.price).toFixed(2)} €</span>
+          <button onclick="processScannedBarcode('${escapeHtml(art.code)}')" ${inCart ? 'disabled' : ''} class="px-3 py-1.5 rounded-lg text-xs font-bold transition ${inCart ? 'bg-emerald-200 text-emerald-800' : 'bg-sky-600 hover:bg-sky-700 text-white'}">${inCart ? 'Dans le panier' : '+ Panier'}</button>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderCart() {
+  const listEl = document.getElementById('cart-items-list');
+  document.getElementById('cart-count').textContent = appState.cart.length;
+  if (appState.cart.length === 0) {
+    listEl.innerHTML = '<p class="text-sm text-slate-400 text-center py-8">Panier vide</p>';
+    document.getElementById('cart-total-amount').textContent = '0.00 €';
+    return;
+  }
+  let total = 0;
+  listEl.innerHTML = appState.cart.map(item => {
+    total += Number(item.price);
+    return `
+      <div class="p-3 rounded-xl border bg-slate-50 border-slate-200 flex items-center justify-between gap-2">
+        <div>
+          <div class="font-mono-code text-xs font-bold text-slate-700">${escapeHtml(item.code)}</div>
+          <div class="font-bold text-sm text-slate-900">${escapeHtml(item.brandModel)}</div>
+        </div>
+        <div class="flex items-center gap-2.5">
+          <span class="font-black text-sm text-slate-900">${Number(item.price).toFixed(2)} €</span>
+          <button onclick="removeFromCart('${item.id}')" class="p-1.5 rounded-lg text-rose-600 hover:bg-rose-100"><i data-lucide="x" class="w-4 h-4"></i></button>
+        </div>
+      </div>
+    `;
+  }).join('');
+  document.getElementById('cart-total-amount').textContent = total.toFixed(2) + ' €';
+  refreshIcons();
+}
+
+function removeFromCart(artId) {
+  appState.cart = appState.cart.filter(i => i.id !== artId);
+  renderCart();
+  renderAvailableStock();
+}
+function clearCart() {
+  appState.cart = [];
+  renderCart();
+  renderAvailableStock();
+}
+
+function selectPaymentMethod(method) {
+  appState.paymentMethod = method;
+  const map = { 'Carte Bancaire': 'pay-cb', 'Espèces': 'pay-esp', 'Chèque': 'pay-chq' };
+  Object.entries(map).forEach(([label, id]) => {
+    const btn = document.getElementById(id);
+    if (!btn) return;
+    btn.className = (label === method)
+      ? 'pay-method-btn py-2.5 px-2 rounded-xl border-2 border-emerald-600 bg-emerald-50 text-emerald-800 font-bold text-xs flex flex-col items-center gap-1'
+      : 'pay-method-btn py-2.5 px-2 rounded-xl border border-slate-200 bg-white text-slate-700 font-bold text-xs flex flex-col items-center gap-1';
+  });
+}
+
+function checkoutCart() {
+  if (appState.cart.length === 0) { showToast('Panier vide.', 'warning'); return; }
+  const now = new Date().toISOString();
+  const soldIds = appState.cart.map(i => i.id);
+  const total = appState.cart.reduce((sum, i) => sum + Number(i.price), 0);
+  
+  appState.articles.forEach(art => {
+    if (soldIds.includes(art.id)) { art.status = 'sold'; art.soldAt = now; }
+  });
+  appState.sales.push({ id: 'VENTE-' + Date.now(), articleIds: soldIds, total, paymentMethod: appState.paymentMethod, date: now });
+  appState.cart = [];
+  saveAppData(true);
+  renderCart();
+  renderAvailableStock();
+  showToast(`Encaissement validé : ${total.toFixed(2)} €`, 'success');
+}
+
+// Logique Caisses & Bilan
+function renderCaissesDashboard() {
+  const totalArticles = appState.articles.length;
+  const soldArticles = appState.articles.filter(a => a.status === 'sold');
+  const grossSales = soldArticles.reduce((s, a) => s + Number(a.price), 0);
+  const salesCommission = grossSales * SALES_COMMISSION_RATE;
+  const netDeposants = grossSales * SELLER_PAYOUT_RATE;
+
+  let totalDepositFees = 0;
+  appState.deposants.forEach(d => {
+    if (d.depositNumber !== null && !d.isPro) {
+      const count = appState.articles.filter(a => a.deposantId === d.id).length;
+      totalDepositFees += count * DEPOSIT_FEE_PARTICULIER;
+    }
+  });
+  const totalClubRevenue = totalDepositFees + salesCommission;
+
+  document.getElementById('stat-total-articles').textContent = totalArticles;
+  document.getElementById('stat-sold-articles').textContent = `${soldArticles.length} vendus`;
+  document.getElementById('stat-gross-sales').textContent = grossSales.toFixed(2) + ' €';
+  document.getElementById('stat-deposit-fees').textContent = totalDepositFees.toFixed(2) + ' €';
+  document.getElementById('stat-club-total').textContent = totalClubRevenue.toFixed(2) + ' €';
+  document.getElementById('stat-club-breakdown').textContent = `${totalDepositFees.toFixed(2)} € dépôts + ${salesCommission.toFixed(2)} € (10%)`;
+  document.getElementById('stat-net-deposants').textContent = netDeposants.toFixed(2) + ' €';
+  renderBilanTable();
+}
+
+function focusRestitutionSection() {
+  document.getElementById('section-bilan-restitution')?.scrollIntoView({ behavior: 'smooth' });
+}
+
+function renderBilanTable() {
+  const query = (document.getElementById('bilan-search-input')?.value || '').trim().toLowerCase();
+  const list = appState.deposants.filter(d => d.depositNumber !== null).filter(d => !query || String(d.depositNumber).includes(query) || d.nom.toLowerCase().includes(query));
+  const tbody = document.getElementById('bilan-table-body');
+
+  if (list.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" class="py-8 text-center text-xs text-slate-400">Aucun dossier validé.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = list.map(d => {
+    const arts = appState.articles.filter(a => a.deposantId === d.id);
+    const sold = arts.filter(a => a.status === 'sold');
+    const depositFee = getDeposantDepositFee(d, arts.length);
+    const gross = sold.reduce((s, a) => s + Number(a.price), 0);
+    const net = gross * SELLER_PAYOUT_RATE;
+
+    return `
+      <tr class="hover:bg-slate-50">
+        <td class="py-3 px-3 font-mono-code font-bold">#${d.depositNumber}</td>
+        <td class="py-3 px-3"><span class="font-bold">${escapeHtml(d.nom)} ${escapeHtml(d.prenom)}</span> ${d.isPro ? '<span class="text-[10px] px-1 rounded bg-amber-100">PRO</span>' : ''}</td>
+        <td class="py-3 px-3 text-center text-xs">${arts.length} dép. / <span class="text-emerald-700 font-bold">${sold.length} vend.</span></td>
+        <td class="py-3 px-3 text-right text-xs font-bold">${d.isPro ? '0.00 €' : depositFee.toFixed(2) + ' €'}</td>
+        <td class="py-3 px-3 text-right font-semibold">${gross.toFixed(2)} €</td>
+        <td class="py-3 px-3 text-right font-black text-indigo-700">${net.toFixed(2)} €</td>
+        <td class="py-3 px-3 text-center">${d.restituted ? '<span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">Restitué</span>' : '<span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">En attente</span>'}</td>
+        <td class="py-3 px-3 text-right">
+          <button onclick="toggleRestitutedStatus('${d.id}')" class="px-2.5 py-1.5 rounded-lg text-xs font-bold ${d.restituted ? 'bg-slate-200 text-slate-700' : 'bg-emerald-600 hover:bg-emerald-700 text-white'}">${d.restituted ? 'Annuler' : 'Restituer'}</button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function toggleRestitutedStatus(depId) {
+  const dep = appState.deposants.find(d => d.id === depId);
+  if (!dep) return;
+  dep.restituted = !dep.restituted;
+  saveAppData(true);
+  renderBilanTable();
+  showToast('Statut de restitution mis à jour.', 'info');
+}
+
+function openBarcodeSheetsModal() {
+  const preview = document.getElementById('barcode-sheets-preview');
+  const articlesToPrint = appState.articles.filter(a => a.status === 'available');
+  const list = articlesToPrint.length > 0 ? articlesToPrint.map(a => ({ code: a.code, label: `${a.type} ${a.brandModel}` })) : Array.from({ length: 12 }, (_, i) => ({ code: `SOB-1001-${i+1}`, label: 'Étiquette test' }));
+  
+  preview.innerHTML = list.map((item, idx) => `
+    <div class="bg-white rounded-xl p-3 border border-slate-300 flex flex-col items-center text-center shadow-sm">
+      <div class="text-[10px] font-extrabold uppercase mb-1">${escapeHtml(item.label)}</div>
+      <svg id="preview-bc-${idx}" class="max-w-full h-12"></svg>
+    </div>
+  `).join('');
+  document.getElementById('barcode-sheets-modal').classList.remove('hidden');
+  setTimeout(() => {
+    list.forEach((item, idx) => {
+      const svg = document.getElementById(`preview-bc-${idx}`);
+      if (svg && typeof JsBarcode !== 'undefined') {
+        JsBarcode(svg, item.code, { format: 'CODE128B', width: 1.5, height: 35, displayValue: true, fontSize: 10 });
+      }
+    });
+  }, 50);
+}
+function closeBarcodeSheetsModal() { document.getElementById('barcode-sheets-modal').classList.add('hidden'); }
+
+function printBarcodeSheetsDirect() { window.print(); }
+
+function exportSpreadsheetCSV() {
+  const headers = ['Club', 'N° Dépôt', 'Nom', 'Prénom', 'Code Article', 'Type', 'Prix (€)', 'Statut'];
+  const rows = [headers.join(';')];
+  appState.articles.forEach(art => {
+    const dep = appState.deposants.find(d => d.id === art.deposantId) || {};
+    rows.push([CLUB_NAME, dep.depositNumber || '', dep.nom || '', dep.prenom || '', art.code, art.type, art.price, art.status].join(';'));
+  });
+  const blob = new Blob(['\uFEFF' + rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `Bourse_Skis_${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  showToast('Export CSV réussi !', 'success');
+}
+
+function downloadSessionBackup() {
+  if (!isAnyVolunteerUnlocked()) return;
+  const blob = new Blob([JSON.stringify(appState, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `Sauvegarde_Bourse_${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  showToast('Sauvegarde téléchargée !', 'success');
+}
+
+function promptNewBlankSession() {
+  if (!isAnyVolunteerUnlocked()) return;
+  openConfirmModal('Réinitialiser ?', 'Effacer toutes les données pour une nouvelle bourse ?', () => {
+    appState.deposants = [];
+    appState.articles = [];
+    appState.sales = [];
+    appState.cart = [];
+    saveAppData(true);
+    activateView('deposant');
+    showToast('Nouvelle session vierge prête.', 'info');
+  });
+}
+
+function refreshIcons() {
+  if (typeof lucide !== 'undefined' && lucide.createIcons) lucide.createIcons();
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  loadAppData();
+  activateView('deposant');
+  refreshIcons();
+});
+</script>
+</body>
+</html>
