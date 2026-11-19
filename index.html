@@ -5,13 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Bourse aux Skis - SO Skis BASSENS</title>
 <!-- Tailwind CSS -->
-<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
 <!-- Lucide Icons -->
-<script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://unpkg.com/lucide@0.468.0"></script>
 <!-- JsBarcode pour les codes-barres réels CODE128B -->
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
 <!-- Html5-QRCode pour le scan caméra sur mobile -->
-<script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8" type="text/javascript"></script>
 <!-- Google Fonts: Inter & JetBrains Mono -->
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
 <style>
@@ -950,19 +950,15 @@ function updateVolunteerHeaderUI() {
 }
 
 // Numérotation des déposants : DEP01, DEP02, ... jusqu'à DEPX
-function getNextDeposantCode() {
+function getNextDeposantCode(poste) {
+  const prefix = poste && poste.isPro ? 'PRO' : 'P' + String(poste ? poste.id : 'poste1').replace('poste', '');
   let maxNum = 0;
   appState.deposants.forEach(d => {
-    if (d.depositNumber) {
-      const m = String(d.depositNumber).match(/^DEP(\d+)$/i);
-      if (m) {
-        const val = parseInt(m[1], 10);
-        if (val > maxNum) maxNum = val;
-      }
-    }
+    const m = String(d.depositNumber || '').match(new RegExp('^' + prefix + '-(\\d+)$', 'i'));
+    if (m) maxNum = Math.max(maxNum, parseInt(m[1], 10));
   });
-  const nextNum = maxNum + 1;
-  return 'DEP' + (nextNum < 10 ? '0' + nextNum : String(nextNum));
+  const n = maxNum + 1;
+  return prefix + '-' + (n < 10 ? '0' + n : String(n));
 }
 
 // Numérotation des articles par poste avec vérification anti-doublon stricte
@@ -1024,10 +1020,10 @@ function handleCreateDeposantVolunteer(e) {
   const prenom = document.getElementById('vol-dep-prenom').value.trim();
   const tel = document.getElementById('vol-dep-tel').value.trim();
   const email = document.getElementById('vol-dep-email').value.trim();
-  const depCode = getNextDeposantCode();
+  const depCode = getNextDeposantCode(poste);
 
   const newDep = {
-    id: 'DEP-ID-' + Date.now(),
+    id: 'DEP-ID-' + Date.now() + '-' + Math.floor(Math.random() * 10000),
     depositNumber: depCode,
     postId: poste.id,
     nom, prenom, tel, email,
@@ -1188,8 +1184,8 @@ function processProBulkImport() {
     showToast('Renseignez le magasin et au moins un article.', 'error');
     return;
   }
-  const depCode = getNextDeposantCode();
-  const depId = 'DEP-ID-' + Date.now();
+  const depCode = getNextDeposantCode(poste);
+  const depId = 'DEP-ID-' + Date.now() + '-' + Math.floor(Math.random() * 10000);
   appState.deposants.push({
     id: depId, depositNumber: depCode, postId: poste.id,
     nom: shopName, prenom: 'PRO', tel, email: '',
@@ -1710,7 +1706,7 @@ function downloadSessionBackup() {
 }
 
 function handleSessionBackupUpload(event) {
-  if (!isAnyVolunteerUnlocked()) return;
+  if (!appState.isCaissesUnlocked) { showToast('Réservé au mot de passe Caisses.', 'warning'); event.target.value = ''; return; }
   const file = event.target.files?.[0];
   if (!file) return;
   const reader = new FileReader();
@@ -1735,8 +1731,9 @@ function handleSessionBackupUpload(event) {
 }
 
 function promptNewBlankSession() {
-  if (!isAnyVolunteerUnlocked()) return;
+  if (!appState.isCaissesUnlocked) { showToast('Réservé au mot de passe Caisses.', 'warning'); return; }
   openConfirmModal('Réinitialiser ?', 'Effacer toutes les données pour une nouvelle bourse ?', () => {
+    downloadSessionBackup();
     appState.deposants = [];
     appState.articles = [];
     appState.sales = [];
@@ -1758,5 +1755,184 @@ window.addEventListener('DOMContentLoaded', () => {
   refreshIcons();
 });
 </script>
+<!-- ============ SYNCHRONISATION FIREBASE (temps réel + hors-ligne) ============ -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
+         collection, doc, onSnapshot, writeBatch, runTransaction } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+
+// ----- 1. CONFIGURATION (à ne modifier que si vous changez de projet Firebase) -----
+const firebaseConfig = {
+  apiKey: "AIzaSyD8W4atjTepo1mSORrb12q60DizVlBKRQ8",
+  authDomain: "so-skis-bassens-bours-2027.firebaseapp.com",
+  projectId: "so-skis-bassens-bours-2027",
+  storageBucket: "so-skis-bassens-bours-2027.firebasestorage.app",
+  messagingSenderId: "446952579267",
+  appId: "1:446952579267:web:173f34b5cf40b5a63b0276"
+};
+const CLOUD_EMAIL = "bourse_2027@sob73.app";   // compte partagé (mot de passe saisi une fois par appareil)
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })  // mode hors-ligne
+});
+
+const COLS = ['deposants', 'articles', 'sales'];
+const known = { deposants: new Map(), articles: new Map(), sales: new Map() }; // ce qui est déjà dans le cloud
+let cloudReady = false, initialized = false, listening = false;
+const firstSnaps = {};
+
+const stable = o => JSON.stringify(o, (k, v) => v && typeof v === 'object' && !Array.isArray(v)
+  ? Object.keys(v).sort().reduce((r, x) => (r[x] = v[x], r), {}) : v);
+
+// ----- 2. Pastille d'état en bas à gauche -----
+const badge = document.createElement('div');
+badge.className = 'fixed bottom-4 left-4 z-40 no-print text-[11px] font-bold px-3 py-1.5 rounded-full shadow border';
+document.body.appendChild(badge);
+function setStatus(mode) {
+  const m = {
+    ok:      ['☁ Synchronisé', 'bg-emerald-50 text-emerald-700 border-emerald-200'],
+    offline: ['⚠ Hors-ligne (données gardées sur l\'appareil)', 'bg-amber-50 text-amber-800 border-amber-300'],
+    local:   ['💾 Mode local (pas de synchro)', 'bg-slate-100 text-slate-600 border-slate-300'],
+    wait:    ['… Connexion au cloud', 'bg-sky-50 text-sky-700 border-sky-200']
+  }[mode];
+  badge.textContent = m[0];
+  badge.className = 'fixed bottom-4 left-4 z-40 no-print text-[11px] font-bold px-3 py-1.5 rounded-full shadow border ' + m[1];
+}
+setStatus('wait');
+window.addEventListener('online',  () => cloudReady && setStatus('ok'));
+window.addEventListener('offline', () => cloudReady && setStatus('offline'));
+
+// ----- 3. Écran de connexion cloud (une seule fois par appareil) -----
+function showLogin(message) {
+  let ov = document.getElementById('cloud-login');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.id = 'cloud-login';
+    ov.className = 'fixed inset-0 z-[70] bg-slate-950/80 flex items-center justify-center p-4 no-print';
+    ov.innerHTML = `<div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-3">
+      <h3 class="text-lg font-extrabold">Connexion au cloud</h3>
+      <p class="text-xs text-slate-500">Mot de passe du compte partagé de la bourse (demandé une seule fois sur cet appareil).</p>
+      <input id="cloud-pwd" type="password" autocomplete="off" class="w-full px-4 py-3 rounded-xl border-2 border-slate-300" placeholder="Mot de passe cloud">
+      <p id="cloud-err" class="text-xs font-bold text-rose-600"></p>
+      <div class="flex gap-2 justify-end">
+        <button id="cloud-skip" class="px-3 py-2 rounded-xl bg-slate-100 text-slate-700 font-bold text-xs">Mode local</button>
+        <button id="cloud-ok" class="px-4 py-2 rounded-xl bg-sky-600 text-white font-bold text-xs">Se connecter</button>
+      </div></div>`;
+    document.body.appendChild(ov);
+    const go = async () => {
+      try {
+        await signInWithEmailAndPassword(auth, CLOUD_EMAIL, document.getElementById('cloud-pwd').value);
+        ov.remove();
+      } catch (e) {
+        document.getElementById('cloud-err').textContent =
+          e.code === 'auth/network-request-failed' ? 'Pas de connexion internet.' : 'Mot de passe incorrect.';
+      }
+    };
+    document.getElementById('cloud-ok').onclick = go;
+    document.getElementById('cloud-pwd').onkeydown = e => { if (e.key === 'Enter') go(); };
+    document.getElementById('cloud-skip').onclick = () => { ov.remove(); setStatus('local'); };
+  }
+  document.getElementById('cloud-err').textContent = message || '';
+}
+
+onAuthStateChanged(auth, user => {
+  if (user) startListeners(); else showLogin();
+});
+
+// ----- 4. Réception temps réel : le cloud fait foi -----
+function persistLocal() {
+  safeStorageSet(STORAGE_KEY, JSON.stringify({ club: CLUB_NAME, deposants: appState.deposants,
+    articles: appState.articles, sales: appState.sales, savedAt: new Date().toISOString() }));
+}
+let renderTimer;
+function scheduleRender() {
+  clearTimeout(renderTimer);
+  renderTimer = setTimeout(function tryRender() {
+    const a = document.activeElement;
+    if (a && /INPUT|TEXTAREA/.test(a.tagName) && a.value && a.type !== 'search') { // ne pas effacer une saisie en cours
+      renderTimer = setTimeout(tryRender, 1500); return;
+    }
+    if (['depots', 'ventes', 'caisses'].includes(appState.activeTab)) activateView(appState.activeTab);
+  }, 400);
+}
+function applySnap(c, snap) {
+  const arr = snap.docs.map(d => d.data());
+  appState[c] = arr;
+  known[c] = new Map(arr.map(o => [o.id, stable(o)]));
+}
+function initialize() {
+  initialized = true;
+  const cloudEmpty = COLS.every(c => firstSnaps[c].empty);
+  const localCount = appState.deposants.length + appState.articles.length + appState.sales.length;
+  if (cloudEmpty && localCount > 0 &&
+      confirm(`Le cloud est vide mais cet appareil contient ${localCount} éléments.\n\nOK = les envoyer au cloud\nAnnuler = repartir du cloud (vide)`)) {
+    cloudReady = true; setStatus('ok'); saveAppData(true); return;
+  }
+  COLS.forEach(c => applySnap(c, firstSnaps[c]));
+  cloudReady = true; persistLocal(); setStatus(navigator.onLine ? 'ok' : 'offline'); scheduleRender();
+}
+function startListeners() {
+  if (listening) return; listening = true;
+  COLS.forEach(c => onSnapshot(collection(db, c), snap => {
+    if (!initialized) { firstSnaps[c] = snap; if (COLS.every(k => firstSnaps[k])) initialize(); return; }
+    applySnap(c, snap); persistLocal(); scheduleRender();
+  }, err => { console.error(err); showToast('Cloud : accès refusé ou erreur (' + err.code + ')', 'error'); setStatus('local'); }));
+}
+
+// ----- 5. Envoi : seulement ce qui a changé (un document par objet) -----
+window.sauvegarderDansLeCloud = function (payload) {
+  if (!cloudReady) return;
+  const ops = [];
+  COLS.forEach(c => {
+    const present = new Set();
+    (payload[c] || []).forEach(o => {
+      present.add(o.id); const s = stable(o);
+      if (known[c].get(o.id) !== s) ops.push({ t: 'set', c, o, s });
+    });
+    known[c].forEach((s, id) => { if (!present.has(id)) ops.push({ t: 'del', c, id }); });
+  });
+  ops.forEach(op => op.t === 'set' ? known[op.c].set(op.o.id, op.s) : known[op.c].delete(op.id));
+  for (let i = 0; i < ops.length; i += 400) {
+    const chunk = ops.slice(i, i + 400), b = writeBatch(db);
+    chunk.forEach(op => op.t === 'set' ? b.set(doc(db, op.c, op.o.id), JSON.parse(JSON.stringify(op.o)))
+                                       : b.delete(doc(db, op.c, op.id)));
+    b.commit().catch(e => {
+      console.error(e); showToast('Erreur de synchronisation cloud', 'error');
+      chunk.forEach(op => op.t === 'set' ? known[op.c].delete(op.o.id) : known[op.c].set(op.id, '?')); // sera retenté
+    });
+  }
+};
+
+// ----- 6. Encaissement protégé contre la double vente -----
+const originalCheckout = window.checkoutCart;
+let checkoutBusy = false;
+window.checkoutCart = async function () {
+  if (checkoutBusy) return;
+  if (!cloudReady || !navigator.onLine || appState.cart.length === 0) return originalCheckout();
+  checkoutBusy = true;
+  try {
+    const ids = appState.cart.map(i => i.id);
+    const tx = runTransaction(db, async t => {
+      const snaps = await Promise.all(ids.map(id => t.get(doc(db, 'articles', id))));
+      const bad = snaps.filter(s => !s.exists() || s.data().status !== 'available').map(s => s.id);
+      if (!bad.length) { const now = new Date().toISOString(); snaps.forEach(s => t.update(s.ref, { status: 'sold', soldAt: now })); }
+      return bad;
+    });
+    const bad = await Promise.race([tx, new Promise(r => setTimeout(() => r('timeout'), 8000))]);
+    if (bad === 'timeout') { showToast('Connexion lente : vente enregistrée en local.', 'warning'); originalCheckout(); }
+    else if (bad.length) {
+      appState.cart = appState.cart.filter(i => !bad.includes(i.id));
+      renderCart();
+      showToast(`${bad.length} article(s) déjà vendu(s) sur une autre caisse : retiré(s) du panier.`, 'error');
+    } else originalCheckout();
+  } catch (e) {
+    console.error(e); showToast('Cloud injoignable : vente enregistrée en local.', 'warning'); originalCheckout();
+  } finally { checkoutBusy = false; }
+};
+</script>
+
 </body>
 </html>
