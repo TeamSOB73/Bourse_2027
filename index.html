@@ -100,6 +100,7 @@ body {
           <i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i>
           <span id="autosave-time">Sauvegardé</span>
         </span>
+        <div id="caisses-header-tools" class="hidden items-center gap-2">
         <button onclick="downloadSessionBackup()" title="Enregistrer une sauvegarde complète (.JSON)" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 transition flex items-center gap-1.5 text-xs font-semibold">
           <i data-lucide="download" class="w-4 h-4"></i>
           <span class="hidden md:inline">Enregistrer</span>
@@ -116,6 +117,7 @@ body {
         <button onclick="lockAllVolunteerSpaces()" title="Verrouiller tous les accès" class="p-2 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 transition flex items-center gap-1 text-xs font-bold">
           <i data-lucide="log-out" class="w-4 h-4"></i>
         </button>
+        </div>
       </div>
     </div>
   </div>
@@ -941,6 +943,11 @@ function updateVolunteerHeaderUI() {
     tools.classList.toggle('hidden', !isAnyVolunteerUnlocked());
     tools.classList.toggle('flex', isAnyVolunteerUnlocked());
   }
+  const caisseTools = document.getElementById('caisses-header-tools');
+  if (caisseTools) {
+    caisseTools.classList.toggle('hidden', !appState.isCaissesUnlocked);
+    caisseTools.classList.toggle('flex', !!appState.isCaissesUnlocked);
+  }
   const lockDep = document.getElementById('icon-lock-depots');
   const lockVen = document.getElementById('icon-lock-ventes');
   const lockCai = document.getElementById('icon-lock-caisses');
@@ -1732,17 +1739,44 @@ function handleSessionBackupUpload(event) {
 
 function promptNewBlankSession() {
   if (!appState.isCaissesUnlocked) { showToast('Réservé au mot de passe Caisses.', 'warning'); return; }
-  openConfirmModal('Réinitialiser ?', 'Effacer toutes les données pour une nouvelle bourse ?', () => {
-    downloadSessionBackup();
-    appState.deposants = [];
-    appState.articles = [];
-    appState.sales = [];
-    appState.cart = [];
-    appState.selectedVolunteerDepId = null;
-    saveAppData(true);
-    activateView(appState.activeTab);
-    showToast('Nouvelle session vierge prête.', 'info');
+  openConfirmModal('Réinitialiser ?', 'Effacer toutes les données (déposants, articles, ventes) pour une nouvelle bourse ?', () => {
+    openTypedConfirm(
+      'Dernière confirmation',
+      `Cette action efface ${appState.deposants.length} déposants, ${appState.articles.length} articles et ${appState.sales.length} ventes sur TOUS les appareils. Une sauvegarde .json sera téléchargée avant l'effacement.`,
+      'EFFACER',
+      () => {
+        downloadSessionBackup();
+        appState.deposants = [];
+        appState.articles = [];
+        appState.sales = [];
+        appState.cart = [];
+        appState.selectedVolunteerDepId = null;
+        saveAppData(true);
+        activateView(appState.activeTab);
+        showToast('Nouvelle session vierge prête.', 'info');
+      }
+    );
   });
+}
+
+function openTypedConfirm(title, text, keyword, onOk) {
+  const ov = document.createElement('div');
+  ov.className = 'fixed inset-0 z-[80] bg-slate-950/80 flex items-center justify-center p-4 no-print';
+  ov.innerHTML = `<div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-3">
+    <h3 class="text-lg font-extrabold text-rose-700">${escapeHtml(title)}</h3>
+    <p class="text-sm text-slate-600">${escapeHtml(text)}</p>
+    <p class="text-xs font-bold text-slate-700">Pour confirmer, tapez <span class="text-rose-700">${escapeHtml(keyword)}</span> :</p>
+    <input type="text" autocomplete="off" class="w-full px-4 py-3 rounded-xl border-2 border-slate-300 uppercase">
+    <div class="flex gap-2 justify-end">
+      <button data-a="no" class="px-3 py-2 rounded-xl bg-slate-100 text-slate-700 font-bold text-xs">Annuler</button>
+      <button data-a="ok" disabled class="px-4 py-2 rounded-xl bg-rose-600 text-white font-bold text-xs opacity-40">Effacer définitivement</button>
+    </div></div>`;
+  document.body.appendChild(ov);
+  const input = ov.querySelector('input'), ok = ov.querySelector('[data-a=ok]');
+  input.oninput = () => { const good = input.value.trim().toUpperCase() === keyword; ok.disabled = !good; ok.classList.toggle('opacity-40', !good); };
+  ov.querySelector('[data-a=no]').onclick = () => ov.remove();
+  ok.onclick = () => { ov.remove(); onOk(); };
+  input.focus();
 }
 
 function refreshIcons() {
