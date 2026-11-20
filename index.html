@@ -425,7 +425,7 @@ body {
         <h1 class="text-2xl font-extrabold mt-1">Pilotage Caisses, Éditions & Restitution</h1>
         <p class="text-xs text-slate-300 mt-0.5">Barème club : <strong>1 € / article déposé</strong> + <strong>10% de commission sur les ventes</strong>.</p>
       </div>
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         <button onclick="openBarcodeSheetsModal()" class="p-4 rounded-xl bg-white text-slate-900 hover:bg-sky-50 transition text-left shadow-sm border border-slate-200 flex items-start gap-3">
           <div class="w-10 h-10 rounded-xl bg-sky-100 text-sky-700 flex items-center justify-center shrink-0"><i data-lucide="barcode" class="w-5 h-5"></i></div>
           <div><div class="font-extrabold text-sm">Planches codes barres</div><div class="text-[11px] text-slate-500 mt-0.5">CODE-128B A4</div></div>
@@ -437,6 +437,14 @@ body {
         <button onclick="exportSpreadsheetCSV()" class="p-4 rounded-xl bg-white text-slate-900 hover:bg-emerald-50 transition text-left shadow-sm border border-slate-200 flex items-start gap-3">
           <div class="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0"><i data-lucide="sheet" class="w-5 h-5"></i></div>
           <div><div class="font-extrabold text-sm">Exporter tableur</div><div class="text-[11px] text-slate-500 mt-0.5">Export CSV complet</div></div>
+        </button>
+        <button onclick="openFraisModal()" class="p-4 rounded-xl bg-white text-slate-900 hover:bg-rose-50 transition text-left shadow-sm border border-slate-200 flex items-start gap-3">
+          <div class="w-10 h-10 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0"><i data-lucide="receipt" class="w-5 h-5"></i></div>
+          <div><div class="font-extrabold text-sm">Frais annexes</div><div class="text-[11px] text-slate-500 mt-0.5">Dépenses à déduire du bénéfice</div></div>
+        </button>
+        <button onclick="printBourseRecap()" class="p-4 rounded-xl bg-white text-slate-900 hover:bg-emerald-50 transition text-left shadow-sm border border-slate-200 flex items-start gap-3">
+          <div class="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0"><i data-lucide="file-text" class="w-5 h-5"></i></div>
+          <div><div class="font-extrabold text-sm">Bilan de la bourse (PDF)</div><div class="text-[11px] text-slate-500 mt-0.5">Ventes, recette, bénéfice, dépôts</div></div>
         </button>
         <button onclick="focusRestitutionSection()" class="p-4 rounded-xl bg-amber-400 text-slate-950 hover:bg-amber-300 transition text-left shadow-sm font-bold flex items-start gap-3">
           <div class="w-10 h-10 rounded-xl bg-slate-950/10 text-slate-950 flex items-center justify-center shrink-0"><i data-lucide="hand-coins" class="w-5 h-5"></i></div>
@@ -458,7 +466,7 @@ body {
       <div id="cancel-art-result"></div>
     </div>
 
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
       <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm">
         <div class="text-[11px] font-bold text-slate-500 uppercase">Articles Déposés</div>
         <div id="stat-total-articles" class="text-2xl font-black text-slate-900 mt-1">0</div>
@@ -480,6 +488,16 @@ body {
       <div class="bg-indigo-50 rounded-2xl p-4 border border-indigo-200 shadow-sm">
         <div class="text-[11px] font-bold text-indigo-800 uppercase">Net à Reverser (90%)</div>
         <div id="stat-net-deposants" class="text-2xl font-black text-indigo-700 mt-1">0.00 €</div>
+      </div>
+      <div class="bg-rose-50 rounded-2xl p-4 border border-rose-200 shadow-sm">
+        <div class="text-[11px] font-bold text-rose-800 uppercase">Frais annexes</div>
+        <div id="stat-frais-annexes" class="text-2xl font-black text-rose-700 mt-1">0.00 €</div>
+        <div id="stat-frais-count" class="text-[11px] text-rose-700 font-semibold mt-1">Aucun frais</div>
+      </div>
+      <div class="bg-emerald-50 rounded-2xl p-4 border border-emerald-200 shadow-sm">
+        <div class="text-[11px] font-bold text-emerald-800 uppercase">Bénéfice net du club</div>
+        <div id="stat-benefice" class="text-2xl font-black text-emerald-700 mt-1">0.00 €</div>
+        <div class="text-[11px] text-emerald-700 font-semibold mt-1">Recette − frais annexes</div>
       </div>
     </div>
 
@@ -762,7 +780,8 @@ let appState = {
   lastScannedCode: null,
   deposants: [],
   articles: [],
-  sales: []
+  sales: [],
+  frais: []
 };
 
 let cashierMobileScanner = null;
@@ -787,6 +806,7 @@ function saveAppData(silent = false) {
     deposants: appState.deposants,
     articles: appState.articles,
     sales: appState.sales,
+    frais: appState.frais,
     savedAt: new Date().toISOString()
   };
   safeStorageSet(STORAGE_KEY, JSON.stringify(payload));
@@ -808,6 +828,7 @@ function loadAppData() {
       appState.deposants = Array.isArray(parsed.deposants) ? parsed.deposants : [];
       appState.articles = Array.isArray(parsed.articles) ? parsed.articles : [];
       appState.sales = Array.isArray(parsed.sales) ? parsed.sales : [];
+      appState.frais = Array.isArray(parsed.frais) ? parsed.frais : [];
     } catch (e) { console.warn('Erreur chargement local'); }
   }
 }
@@ -1628,6 +1649,12 @@ function renderCaissesDashboard() {
   document.getElementById('stat-club-total').textContent = totalClubRevenue.toFixed(2) + ' €';
   document.getElementById('stat-club-breakdown').textContent = `${totalDepositFees.toFixed(2)} € dépôts + ${salesCommission.toFixed(2)} € (10%)`;
   document.getElementById('stat-net-deposants').textContent = netDeposants.toFixed(2) + ' €';
+  const totalFrais = (appState.frais || []).reduce((sum, f) => sum + Number(f.amount || 0), 0);
+  document.getElementById('stat-frais-annexes').textContent = totalFrais.toFixed(2) + ' €';
+  document.getElementById('stat-frais-count').textContent = (appState.frais || []).length ? (appState.frais || []).length + ' frais enregistré(s)' : 'Aucun frais';
+  const beneficeEl = document.getElementById('stat-benefice');
+  beneficeEl.textContent = (totalClubRevenue - totalFrais).toFixed(2) + ' €';
+  beneficeEl.className = 'text-2xl font-black mt-1 ' + ((totalClubRevenue - totalFrais) < 0 ? 'text-rose-700' : 'text-emerald-700');
   renderBilanTable();
 }
 
@@ -2071,12 +2098,203 @@ function reactivateDepositForArticle(artId) {
     });
 }
 
+// ===== Frais annexes (espace Caisses) =====
+function openFraisModal() {
+  if (!appState.isCaissesUnlocked) return;
+  let ov = document.getElementById('frais-modal');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.id = 'frais-modal';
+    ov.className = 'hidden fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 no-print';
+    ov.innerHTML = `
+      <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 fade-in space-y-4 max-h-[90vh] overflow-y-auto">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <h3 class="text-lg font-extrabold text-slate-900">Frais annexes</h3>
+            <p class="text-xs text-slate-500">Dépenses liées à la bourse (salle, affiches, rouleaux d'étiquettes, assurance…). Elles sont déduites du bénéfice du club.</p>
+          </div>
+          <button onclick="closeFraisModal()" class="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100"><i data-lucide="x" class="w-5 h-5"></i></button>
+        </div>
+        <form onsubmit="addFrais(event)" class="grid grid-cols-12 gap-2">
+          <input id="frais-label" type="text" required autocomplete="off" placeholder="Libellé (ex : location salle)" class="col-span-12 sm:col-span-7 px-3 py-2.5 rounded-xl border border-slate-300 text-sm">
+          <input id="frais-amount" type="text" inputmode="decimal" required autocomplete="off" placeholder="Montant €" class="col-span-7 sm:col-span-3 px-3 py-2.5 rounded-xl border border-slate-300 text-sm">
+          <button type="submit" class="col-span-5 sm:col-span-2 px-3 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-sm">Ajouter</button>
+        </form>
+        <div id="frais-list" class="space-y-2"></div>
+      </div>`;
+    document.body.appendChild(ov);
+  }
+  renderFraisList();
+  ov.classList.remove('hidden');
+  refreshIcons();
+  setTimeout(() => document.getElementById('frais-label')?.focus(), 60);
+}
+
+function closeFraisModal() {
+  const ov = document.getElementById('frais-modal');
+  if (ov) ov.classList.add('hidden');
+}
+
+function renderFraisList() {
+  const box = document.getElementById('frais-list');
+  if (!box) return;
+  const list = (appState.frais || []).slice().sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+  const total = list.reduce((sum, f) => sum + Number(f.amount || 0), 0);
+  if (list.length === 0) {
+    box.innerHTML = '<p class="text-xs text-slate-400 text-center py-4">Aucun frais enregistré.</p>';
+    return;
+  }
+  box.innerHTML = list.map(f => `
+    <div class="p-2.5 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-between gap-2">
+      <div class="min-w-0">
+        <div class="font-bold text-sm text-slate-900 truncate">${escapeHtml(f.label)}</div>
+        <div class="text-[11px] text-slate-500">${new Date(f.createdAt).toLocaleDateString('fr-FR')}</div>
+      </div>
+      <div class="flex items-center gap-2 shrink-0">
+        <span class="font-black text-sm text-rose-700">${Number(f.amount).toFixed(2)} €</span>
+        <button onclick="deleteFrais('${f.id}')" title="Supprimer" class="p-1.5 rounded-lg text-rose-600 hover:bg-rose-100"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+      </div>
+    </div>`).join('') + `
+    <div class="flex items-center justify-between pt-2 border-t border-slate-200 font-extrabold text-sm">
+      <span>Total des frais annexes</span><span class="text-rose-700">${total.toFixed(2)} €</span>
+    </div>`;
+  refreshIcons();
+}
+
+function addFrais(e) {
+  e.preventDefault();
+  if (!appState.isCaissesUnlocked) return;
+  const label = document.getElementById('frais-label').value.trim();
+  const amount = parseFloat(document.getElementById('frais-amount').value.replace(/[\s€]/g, '').replace(',', '.'));
+  if (!label || isNaN(amount) || amount <= 0) { showToast('Indiquez un libellé et un montant supérieur à 0.', 'warning'); return; }
+  if (!Array.isArray(appState.frais)) appState.frais = [];
+  appState.frais.push({
+    id: 'FRAIS-' + Date.now() + '-' + Math.floor(Math.random() * 10000),
+    label, amount: Math.round(amount * 100) / 100, createdAt: new Date().toISOString()
+  });
+  saveAppData(true);
+  document.getElementById('frais-label').value = '';
+  document.getElementById('frais-amount').value = '';
+  renderFraisList();
+  renderCaissesDashboard();
+  document.getElementById('frais-label').focus();
+}
+
+function deleteFrais(id) {
+  if (!appState.isCaissesUnlocked) return;
+  const f = (appState.frais || []).find(x => x.id === id);
+  if (!f || !window.confirm(`Supprimer le frais « ${f.label} » (${Number(f.amount).toFixed(2)} €) ?`)) return;
+  appState.frais = appState.frais.filter(x => x.id !== id);
+  saveAppData(true);
+  renderFraisList();
+  renderCaissesDashboard();
+}
+
+// ===== Bilan global de la bourse (impression / enregistrement PDF) =====
+function printBourseRecap() {
+  if (!appState.isCaissesUnlocked) return;
+  const eur = n => Number(n).toFixed(2).replace('.', ',') + ' €';
+  const arts = appState.articles.filter(isActiveArt);
+  const sold = appState.articles.filter(a => a.status === 'sold');
+  const cancelled = appState.articles.length - arts.length;
+  const gross = sold.reduce((sum, a) => sum + Number(a.price), 0);
+  const commission = gross * SALES_COMMISSION_RATE;
+  const netDepos = gross * SELLER_PAYOUT_RATE;
+  const deps = appState.deposants.filter(d => d.depositNumber !== null);
+  const pros = deps.filter(d => d.isPro).length;
+  let depositFees = 0;
+  deps.forEach(d => { if (!d.isPro) depositFees += arts.filter(a => a.deposantId === d.id).length * DEPOSIT_FEE_PARTICULIER; });
+  const club = depositFees + commission;
+  const fraisList = (appState.frais || []).slice().sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+  const totalFrais = fraisList.reduce((sum, f) => sum + Number(f.amount || 0), 0);
+  const benefice = club - totalFrais;
+  const restituted = deps.filter(d => d.restituted).length;
+  const rate = arts.length ? Math.round(sold.length / arts.length * 100) : 0;
+  const tickets = appState.sales.length;
+
+  const types = {};
+  arts.forEach(a => {
+    const t = a.type || 'Autre';
+    types[t] = types[t] || { dep: 0, sold: 0, ca: 0 };
+    types[t].dep++;
+    if (a.status === 'sold') { types[t].sold++; types[t].ca += Number(a.price); }
+  });
+  const pay = {};
+  appState.sales.forEach(sl => {
+    const m = sl.paymentMethod || 'Non précisé';
+    pay[m] = pay[m] || { n: 0, total: 0 };
+    pay[m].n++; pay[m].total += Number(sl.total || 0);
+  });
+
+  const th = 'padding:2mm 2.5mm;border:1px solid #cbd5e1;background:#e2e8f0;text-align:left;font-size:11px;';
+  const td = 'padding:1.8mm 2.5mm;border:1px solid #cbd5e1;font-size:12px;';
+  const num = 'text-align:right;font-weight:700;';
+  const h2 = 'font-size:13px;font-weight:900;margin:5mm 0 2mm;text-transform:uppercase;color:#0f172a;border-bottom:1.5px solid #0f172a;padding-bottom:1mm;';
+  const row = (label, value, opts = '') => `<tr><td style="${td}${opts}">${label}</td><td style="${td}${num}${opts}">${value}</td></tr>`;
+
+  document.getElementById('print-area').innerHTML = `
+    <div style="font-family:'Inter',sans-serif;color:#0f172a;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #0f172a;padding-bottom:3mm;">
+        <div>
+          <div style="font-size:11px;font-weight:800;color:#0284c7;text-transform:uppercase;">${escapeHtml(CLUB_NAME)}</div>
+          <div style="font-size:22px;font-weight:900;">BILAN DE LA BOURSE AUX SKIS</div>
+        </div>
+        <div style="font-size:11px;color:#475569;text-align:right;">Édité le ${new Date().toLocaleString('fr-FR')}</div>
+      </div>
+
+      <div style="${h2}">Résultat financier</div>
+      <table style="width:100%;border-collapse:collapse;">
+        ${row('Volume total des ventes (brut)', eur(gross))}
+        ${row(`Frais de dépôt encaissés (${eur(DEPOSIT_FEE_PARTICULIER)} / article, hors Pro)`, eur(depositFees))}
+        ${row('Commission sur les ventes (10 %)', eur(commission))}
+        ${row('Recette totale du club', eur(club), 'background:#f1f5f9;font-weight:800;')}
+        ${row('Frais annexes (à déduire)', '- ' + eur(totalFrais), 'color:#be123c;')}
+        ${row('BÉNÉFICE NET DU CLUB', eur(benefice), (benefice < 0 ? 'background:#fee2e2;color:#9f1239;' : 'background:#dcfce7;') + 'font-weight:900;font-size:14px;')}
+        ${row('Net à reverser aux déposants (90 %)', eur(netDepos), 'color:#312e81;')}
+      </table>
+
+      <div style="${h2}">Activité</div>
+      <table style="width:100%;border-collapse:collapse;">
+        ${row('Déposants (dont professionnels : ' + pros + ')', deps.length)}
+        ${row('Articles déposés (hors dépôts annulés)', arts.length)}
+        ${row('Articles vendus', sold.length + ' (' + rate + ' %)')}
+        ${row('Articles invendus', arts.length - sold.length)}
+        ${row('Dépôts annulés', cancelled)}
+        ${row('Tickets de vente', tickets)}
+        ${row('Panier moyen', tickets ? eur(gross / tickets) : '-')}
+        ${row('Dossiers restitués', restituted + ' / ' + deps.length)}
+      </table>
+
+      <div style="${h2}">Par type d'article</div>
+      <table style="width:100%;border-collapse:collapse;">
+        <tr><th style="${th}">Type</th><th style="${th}text-align:right;">Déposés</th><th style="${th}text-align:right;">Vendus</th><th style="${th}text-align:right;">Ventes</th></tr>
+        ${Object.keys(types).sort().map(t => `<tr><td style="${td}">${escapeHtml(t)}</td><td style="${td}${num}">${types[t].dep}</td><td style="${td}${num}">${types[t].sold}</td><td style="${td}${num}">${eur(types[t].ca)}</td></tr>`).join('') || `<tr><td colspan="4" style="${td}">Aucun article</td></tr>`}
+      </table>
+
+      <div style="${h2}">Modes de règlement</div>
+      <table style="width:100%;border-collapse:collapse;">
+        <tr><th style="${th}">Mode</th><th style="${th}text-align:right;">Tickets</th><th style="${th}text-align:right;">Montant</th></tr>
+        ${Object.keys(pay).map(m => `<tr><td style="${td}">${escapeHtml(m)}</td><td style="${td}${num}">${pay[m].n}</td><td style="${td}${num}">${eur(pay[m].total)}</td></tr>`).join('') || `<tr><td colspan="3" style="${td}">Aucune vente</td></tr>`}
+      </table>
+
+      <div style="${h2}">Frais annexes</div>
+      <table style="width:100%;border-collapse:collapse;">
+        <tr><th style="${th}">Libellé</th><th style="${th}width:28mm;">Date</th><th style="${th}text-align:right;width:30mm;">Montant</th></tr>
+        ${fraisList.map(f => `<tr><td style="${td}">${escapeHtml(f.label)}</td><td style="${td}">${new Date(f.createdAt).toLocaleDateString('fr-FR')}</td><td style="${td}${num}">${eur(f.amount)}</td></tr>`).join('') || `<tr><td colspan="3" style="${td}">Aucun frais annexe enregistré</td></tr>`}
+        <tr><td colspan="2" style="${td}font-weight:900;background:#f1f5f9;">Total</td><td style="${td}${num}background:#f1f5f9;">${eur(totalFrais)}</td></tr>
+      </table>
+    </div>`;
+  showToast('Dans la fenêtre d\'impression, choisissez « Enregistrer au format PDF ».', 'info');
+  setTimeout(() => window.print(), 300);
+}
+
 function exportSpreadsheetCSV() {
   const headers = ['Club', 'N° Déposant', 'Nom', 'Prénom', 'N° Article', 'Type', 'Prix (€)', 'Statut'];
   const rows = [headers.join(';')];
   appState.articles.forEach(art => {
     const dep = appState.deposants.find(d => d.id === art.deposantId) || {};
-    rows.push([CLUB_NAME, dep.depositNumber || '', dep.nom || '', dep.prenom || '', art.code, art.type, art.price, art.status].join(';'));
+    const statutLabel = { sold: 'vendu', available: 'en dépôt', cancelled: 'dépôt annulé' }[art.status] || art.status;
+    rows.push([CLUB_NAME, dep.depositNumber || '', dep.nom || '', dep.prenom || '', art.code, art.type, art.price, statutLabel].join(';'));
   });
   const blob = new Blob(['\uFEFF' + rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
   const a = document.createElement('a');
@@ -2108,6 +2326,7 @@ function handleSessionBackupUpload(event) {
       appState.deposants = data.deposants;
       appState.articles = data.articles;
       appState.sales = Array.isArray(data.sales) ? data.sales : [];
+      appState.frais = Array.isArray(data.frais) ? data.frais : [];
       appState.selectedVolunteerDepId = null;
       appState.cart = [];
       saveAppData(true);
@@ -2133,6 +2352,7 @@ function promptNewBlankSession() {
         appState.deposants = [];
         appState.articles = [];
         appState.sales = [];
+        appState.frais = [];
         appState.cart = [];
         appState.selectedVolunteerDepId = null;
         saveAppData(true);
@@ -2197,8 +2417,8 @@ const db = initializeFirestore(app, {
   localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })  // mode hors-ligne
 });
 
-const COLS = ['deposants', 'articles', 'sales'];
-const known = { deposants: new Map(), articles: new Map(), sales: new Map() }; // ce qui est déjà dans le cloud
+const COLS = ['deposants', 'articles', 'sales', 'frais'];
+const known = { deposants: new Map(), articles: new Map(), sales: new Map(), frais: new Map() }; // ce qui est déjà dans le cloud
 let cloudReady = false, initialized = false, listening = false;
 const firstSnaps = {};
 
@@ -2263,7 +2483,7 @@ onAuthStateChanged(auth, user => {
 // ----- 4. Réception temps réel : le cloud fait foi -----
 function persistLocal() {
   safeStorageSet(STORAGE_KEY, JSON.stringify({ club: CLUB_NAME, deposants: appState.deposants,
-    articles: appState.articles, sales: appState.sales, savedAt: new Date().toISOString() }));
+    articles: appState.articles, sales: appState.sales, frais: appState.frais, savedAt: new Date().toISOString() }));
 }
 let renderTimer;
 function scheduleRender() {
@@ -2284,7 +2504,7 @@ function applySnap(c, snap) {
 function initialize() {
   initialized = true;
   const cloudEmpty = COLS.every(c => firstSnaps[c].empty);
-  const localCount = appState.deposants.length + appState.articles.length + appState.sales.length;
+  const localCount = appState.deposants.length + appState.articles.length + appState.sales.length + (appState.frais || []).length;
   if (cloudEmpty && localCount > 0 &&
       confirm(`Le cloud est vide mais cet appareil contient ${localCount} éléments.\n\nOK = les envoyer au cloud\nAnnuler = repartir du cloud (vide)`)) {
     cloudReady = true; setStatus('ok'); saveAppData(true); return;
