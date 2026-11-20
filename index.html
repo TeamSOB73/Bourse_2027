@@ -445,6 +445,19 @@ body {
       </div>
     </div>
 
+    <div id="section-annulations" class="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-3">
+      <div class="flex items-center gap-2">
+        <i data-lucide="undo-2" class="w-5 h-5 text-rose-600"></i>
+        <h2 class="font-extrabold text-slate-900">Annuler une vente ou un dépôt</h2>
+      </div>
+      <p class="text-xs text-slate-500">Saisissez ou scannez le n° d'article. Une vente annulée remet l'article en vente avec le même numéro ; un dépôt annulé garde son numéro (jamais réattribué), avec la mention « dépôt annulé ».</p>
+      <div class="flex gap-2">
+        <input id="cancel-art-input" type="text" autocomplete="off" placeholder="N° d'article" onkeydown="if(event.key==='Enter')lookupArticleForCancel()" class="flex-1 min-w-0 px-4 py-3 rounded-xl border-2 border-slate-300 font-mono-code uppercase">
+        <button onclick="lookupArticleForCancel()" class="px-5 py-3 rounded-xl bg-slate-900 text-white font-bold text-sm">Rechercher</button>
+      </div>
+      <div id="cancel-art-result"></div>
+    </div>
+
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
       <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm">
         <div class="text-[11px] font-bold text-slate-500 uppercase">Articles Déposés</div>
@@ -562,6 +575,15 @@ body {
       <div>
         <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Téléphone Contact *</label>
         <input type="tel" id="pro-shop-tel" placeholder="04 79 ..." class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm">
+      </div>
+    </div>
+    <div class="p-3 rounded-xl bg-amber-50 border border-amber-200 space-y-2">
+      <p class="text-xs text-amber-900"><strong>Fichier CSV :</strong> téléchargez le modèle, remplissez-le (Excel, LibreOffice…), puis importez-le. Les lignes s'affichent ci-dessous pour contrôle avant validation.</p>
+      <div class="flex flex-wrap gap-2">
+        <button type="button" onclick="downloadProCsvTemplate()" class="px-3 py-2 rounded-xl bg-white border border-amber-300 text-amber-900 font-bold text-xs hover:bg-amber-100">Télécharger le modèle CSV</button>
+        <label class="px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs cursor-pointer">Importer un fichier CSV
+          <input type="file" accept=".csv,.txt,text/csv" class="hidden" onchange="handleProCsvFile(event)">
+        </label>
       </div>
     </div>
     <div>
@@ -1080,7 +1102,7 @@ function renderPosteDeposantsList() {
     return;
   }
   container.innerHTML = list.map(d => {
-    const count = appState.articles.filter(a => a.deposantId === d.id).length;
+    const count = appState.articles.filter(a => a.deposantId === d.id && isActiveArt(a)).length;
     const fee = getDeposantDepositFee(d, count);
     const active = d.id === appState.selectedVolunteerDepId;
     return `
@@ -1125,8 +1147,8 @@ function renderVolunteerActiveDossier() {
     ? 'text-xs font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900'
     : 'text-xs font-bold px-2.5 py-0.5 rounded-full bg-sky-100 text-sky-800';
   document.getElementById('vol-dossier-info').textContent = `Tél: ${dep.tel}${dep.commune ? ' • ' + dep.commune : ''}${dep.pieceType ? ' • ' + dep.pieceType + ' n° ' + (dep.pieceNum || '?') : ''}${dep.email ? ' • Email: ' + dep.email : ''}`;
-  document.getElementById('vol-dossier-fees').textContent = getDeposantDepositFee(dep, articles.length).toFixed(2) + ' €';
-  document.getElementById('vol-dossier-art-count').textContent = articles.length;
+  document.getElementById('vol-dossier-fees').textContent = getDeposantDepositFee(dep, articles.filter(isActiveArt).length).toFixed(2) + ' €';
+  document.getElementById('vol-dossier-art-count').textContent = articles.filter(isActiveArt).length;
 
   const listEl = document.getElementById('vol-dossier-articles-list');
   if (articles.length === 0) {
@@ -1142,7 +1164,7 @@ function renderVolunteerActiveDossier() {
           </div>
           <div class="text-xs text-slate-600 mt-1">Taille: <strong>${escapeHtml(art.size)}</strong> • Prix: <strong class="text-emerald-700">${Number(art.price).toFixed(2)} €</strong></div>
         </div>
-        ${art.status === 'available' ? `<button onclick="deleteVolunteerArticle('${art.id}')" class="p-1.5 rounded-lg text-rose-600 hover:bg-rose-100"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : '<span class="text-xs font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">Vendu</span>'}
+        ${art.status === 'available' ? `<button onclick="deleteVolunteerArticle('${art.id}')" class="p-1.5 rounded-lg text-rose-600 hover:bg-rose-100"><i data-lucide="trash-2" class="w-4 h-4"></i></button>` : (art.status === 'cancelled' ? '<span class="text-xs font-bold px-2 py-0.5 rounded bg-slate-200 text-slate-700">Dépôt annulé</span>' : '<span class="text-xs font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">Vendu</span>')}
       </div>
     `).join('');
   }
@@ -1198,6 +1220,81 @@ function deleteVolunteerArticle(artId) {
 function openProImportModal() { document.getElementById('pro-import-modal').classList.remove('hidden'); }
 function closeProImportModal() { document.getElementById('pro-import-modal').classList.add('hidden'); }
 
+// ===== Import CSV Pro : modèle + lecture de fichier =====
+function normalizeArticleType(raw) {
+  const t = String(raw || '').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  if (/^(ski|snow)/.test(t)) return 'Skis';
+  if (/^chauss/.test(t)) return 'Chaussures';
+  if (/^vetement/.test(t)) return 'Vêtements';
+  if (/^divers/.test(t)) return 'Divers';
+  return null;
+}
+
+function downloadProCsvTemplate() {
+  const rows = [
+    'Type;Description;Taille;Prix',
+    'Skis;Rossignol Experience 88 noir/jaune;170 cm;250',
+    'Chaussures;Salomon S/Pro 100 bleu;27.5;120',
+    'Vêtements;Veste Millet Trekker homme noire;L;85',
+    'Divers;Casque Uvex Gravity rouge;M;40'
+  ];
+  const blob = new Blob(['\uFEFF' + rows.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'Modele_Import_Pro.csv';
+  a.click();
+  showToast('Modèle CSV téléchargé (types : Skis, Chaussures, Vêtements, Divers).', 'info');
+}
+
+function parseCsvText(text) {
+  text = text.replace(/^\uFEFF/, '');
+  const first = text.split(/\r?\n/)[0] || '';
+  const delim = [';', '\t', ','].map(d => [d, first.split(d).length]).sort((a, b) => b[1] - a[1])[0][0];
+  const rows = []; let row = [], field = '', inQ = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQ) {
+      if (c === '"' && text[i + 1] === '"') { field += '"'; i++; }
+      else if (c === '"') inQ = false;
+      else field += c;
+    } else if (c === '"') inQ = true;
+    else if (c === delim) { row.push(field); field = ''; }
+    else if (c === '\n' || c === '\r') {
+      if (c === '\r' && text[i + 1] === '\n') i++;
+      row.push(field); field = ''; rows.push(row); row = [];
+    } else field += c;
+  }
+  if (field !== '' || row.length) { row.push(field); rows.push(row); }
+  return rows.filter(r => r.some(c => String(c).trim() !== ''));
+}
+
+function handleProCsvFile(event) {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    let text;
+    try { text = new TextDecoder('utf-8', { fatal: true }).decode(reader.result); }
+    catch (e) { text = new TextDecoder('windows-1252').decode(reader.result); } // CSV Excel « classique »
+    const rows = parseCsvText(text);
+    if (rows.length && rows[0].length >= 4 && isNaN(parseFloat(String(rows[0][3]).replace(',', '.'))) && /type/i.test(rows[0][0])) rows.shift(); // ligne d'en-tête
+    const lines = []; let bad = 0, unknownType = 0;
+    rows.forEach(r => {
+      const clean = c => String(c || '').replace(/;/g, ',').replace(/\s+/g, ' ').trim();
+      const price = parseFloat(String(r[3] || '').replace(/[\s€]/g, '').replace(',', '.'));
+      if (r.length < 4 || !clean(r[1]) || isNaN(price) || price <= 0) { bad++; return; }
+      let type = normalizeArticleType(r[0]);
+      if (!type) { type = 'Divers'; unknownType++; }
+      lines.push([type, clean(r[1]), clean(r[2]), String(price)].join('; '));
+    });
+    document.getElementById('pro-bulk-textarea').value = lines.join('\n');
+    event.target.value = '';
+    const extra = [bad ? `${bad} ligne(s) ignorée(s) (description ou prix manquant)` : '', unknownType ? `${unknownType} type(s) inconnu(s) classé(s) en Divers` : ''].filter(Boolean).join(' • ');
+    showToast(`${lines.length} ligne(s) lues${extra ? ' • ' + extra : ''}. Contrôlez puis cliquez sur « Importer le lot Pro ».`, bad || unknownType ? 'warning' : 'success');
+  };
+  reader.readAsArrayBuffer(file);
+}
+
 function processProBulkImport() {
   const poste = appState.unlockedDepotPoste;
   if (!poste || !poste.isPro) return;
@@ -1221,7 +1318,7 @@ function processProBulkImport() {
   rawLines.forEach((line, idx) => {
     const parts = line.split(';').map(p => p.trim());
     if (parts.length >= 4) {
-      const price = parseFloat(parts[3]);
+      const price = parseFloat(String(parts[3]).replace(/[\s€]/g, '').replace(',', '.'));
       if (!isNaN(price) && price > 0) {
         const nextCode = getNextArticleNumberForPoste(poste);
         if (nextCode) {
@@ -1230,7 +1327,7 @@ function processProBulkImport() {
             id: 'ART-' + Date.now() + '-' + idx,
             deposantId: depId,
             code: nextCode,
-            type: parts[0] || 'Skis',
+            type: normalizeArticleType(parts[0]) || 'Divers',
             brandModel: parts[1],
             size: parts[2],
             price,
@@ -1242,11 +1339,17 @@ function processProBulkImport() {
       }
     }
   });
+  if (importedCount === 0) {
+    appState.deposants = appState.deposants.filter(d => d.id !== depId);
+    showToast('Aucun article valide (vérifiez les prix et le format). Rien n\'a été importé.', 'error');
+    return;
+  }
   appState.selectedVolunteerDepId = depId;
   saveAppData(true);
   closeProImportModal();
   renderDepotPosteWorkspace();
-  showToast(`${importedCount} articles Pro importés (${depCode}, n° 5000+) !`, 'success');
+  const ignored = rawLines.length - importedCount;
+  showToast(`${importedCount} articles Pro importés (${depCode}, n° 5000+)${ignored > 0 ? ' • ' + ignored + ' ligne(s) ignorée(s)' : ''} !`, ignored > 0 ? 'warning' : 'success');
 }
 
 // Logique Ventes
@@ -1265,6 +1368,10 @@ function processScannedBarcode(code) {
   const article = appState.articles.find(a => String(a.code).toUpperCase() === cleanCode);
   if (!article) {
     showToast(`N° d'article inconnu : ${cleanCode}`, 'error');
+    return;
+  }
+  if (article.status === 'cancelled') {
+    showToast(`Article n° ${cleanCode} : dépôt annulé, il ne peut pas être vendu.`, 'warning');
     return;
   }
   if (article.status !== 'available') {
@@ -1416,7 +1523,7 @@ function checkoutCart() {
 
 // Logique Caisses & Bilan
 function renderCaissesDashboard() {
-  const totalArticles = appState.articles.length;
+  const totalArticles = appState.articles.filter(isActiveArt).length;
   const soldArticles = appState.articles.filter(a => a.status === 'sold');
   const grossSales = soldArticles.reduce((s, a) => s + Number(a.price), 0);
   const salesCommission = grossSales * SALES_COMMISSION_RATE;
@@ -1425,7 +1532,7 @@ function renderCaissesDashboard() {
   let totalDepositFees = 0;
   appState.deposants.forEach(d => {
     if (d.depositNumber !== null && !d.isPro) {
-      const count = appState.articles.filter(a => a.deposantId === d.id).length;
+      const count = appState.articles.filter(a => a.deposantId === d.id && isActiveArt(a)).length;
       totalDepositFees += count * DEPOSIT_FEE_PARTICULIER;
     }
   });
@@ -1457,7 +1564,7 @@ function renderBilanTable() {
   tbody.innerHTML = list.map(d => {
     const arts = appState.articles.filter(a => a.deposantId === d.id);
     const sold = arts.filter(a => a.status === 'sold');
-    const depositFee = getDeposantDepositFee(d, arts.length);
+    const depositFee = getDeposantDepositFee(d, arts.filter(isActiveArt).length);
     const gross = sold.reduce((s, a) => s + Number(a.price), 0);
     const net = gross * SELLER_PAYOUT_RATE;
 
@@ -1465,7 +1572,7 @@ function renderBilanTable() {
       <tr class="hover:bg-slate-50">
         <td class="py-3 px-3 font-mono-code font-bold">${escapeHtml(d.depositNumber)}</td>
         <td class="py-3 px-3"><span class="font-bold">${escapeHtml(d.nom)} ${escapeHtml(d.prenom)}</span> ${d.isPro ? '<span class="text-[10px] px-1 rounded bg-amber-100">PRO</span>' : ''}</td>
-        <td class="py-3 px-3 text-center text-xs">${arts.length} dép. / <span class="text-emerald-700 font-bold">${sold.length} vend.</span></td>
+        <td class="py-3 px-3 text-center text-xs">${arts.filter(isActiveArt).length} dép. / <span class="text-emerald-700 font-bold">${sold.length} vend.</span></td>
         <td class="py-3 px-3 text-right text-xs font-bold">${d.isPro ? '0.00 €' : depositFee.toFixed(2) + ' €'}</td>
         <td class="py-3 px-3 text-right font-semibold">${gross.toFixed(2)} €</td>
         <td class="py-3 px-3 text-right font-black text-indigo-700">${net.toFixed(2)} €</td>
@@ -1496,8 +1603,8 @@ function toggleRestitutedStatus(depId) {
 function buildDeposantBilanHTML(d, isLast = true) {
   const arts = appState.articles.filter(a => a.deposantId === d.id);
   const sold = arts.filter(a => a.status === 'sold');
-  const unsold = arts.filter(a => a.status !== 'sold');
-  const depositFee = getDeposantDepositFee(d, arts.length);
+  const unsold = arts.filter(a => a.status !== 'sold' && a.status !== 'cancelled');
+  const depositFee = getDeposantDepositFee(d, arts.filter(isActiveArt).length);
   const gross = sold.reduce((s, a) => s + Number(a.price), 0);
   const commission = gross * SALES_COMMISSION_RATE;
   const net = gross * SELLER_PAYOUT_RATE;
@@ -1523,7 +1630,7 @@ function buildDeposantBilanHTML(d, isLast = true) {
           <div style="margin-top: 2px;"><strong>Téléphone :</strong> ${escapeHtml(d.tel || '-')}${d.commune ? ' • <strong>Commune :</strong> ' + escapeHtml(d.commune) : ''}</div>
         </div>
         <div style="text-align: right;">
-          <div><strong>Articles déposés :</strong> ${arts.length}</div>
+          <div><strong>Articles déposés :</strong> ${arts.filter(isActiveArt).length}</div>
           <div style="margin-top: 2px;"><strong>Vendus :</strong> ${sold.length} • <strong>Invendus :</strong> ${unsold.length}</div>
         </div>
       </div>
@@ -1547,8 +1654,8 @@ function buildDeposantBilanHTML(d, isLast = true) {
               <td style="padding: 2mm 2.5mm; border: 1px solid #cbd5e1; font-weight: 600;">${escapeHtml(art.brandModel)}</td>
               <td style="padding: 2mm 2.5mm; border: 1px solid #cbd5e1;">${escapeHtml(art.size)}</td>
               <td style="padding: 2mm 2.5mm; border: 1px solid #cbd5e1; text-align: right; font-weight: 700;">${Number(art.price).toFixed(2)} €</td>
-              <td style="padding: 2mm 2.5mm; border: 1px solid #cbd5e1; text-align: center; font-weight: 800; color: ${art.status === 'sold' ? '#059669' : '#d97706'};">
-                ${art.status === 'sold' ? 'VENDU' : 'INVENDU (À rendre)'}
+              <td style="padding: 2mm 2.5mm; border: 1px solid #cbd5e1; text-align: center; font-weight: 800; color: ${art.status === 'sold' ? '#059669' : art.status === 'cancelled' ? '#64748b' : '#d97706'};">
+                ${art.status === 'sold' ? 'VENDU' : art.status === 'cancelled' ? 'DÉPÔT ANNULÉ' : 'INVENDU (À rendre)'}
               </td>
             </tr>
           `).join('')}
@@ -1558,7 +1665,7 @@ function buildDeposantBilanHTML(d, isLast = true) {
       <div style="display: flex; justify-content: flex-end; margin-bottom: 8mm;">
         <table style="width: 75mm; border-collapse: collapse; font-size: 12px;">
           <tr>
-            <td style="padding: 2mm 3mm; border: 1px solid #cbd5e1; background: #f8fafc;">Frais de dépôt (${d.isPro ? 'Pro : 0 €' : arts.length + ' × 1,00 €'})</td>
+            <td style="padding: 2mm 3mm; border: 1px solid #cbd5e1; background: #f8fafc;">Frais de dépôt (${d.isPro ? 'Pro : 0 €' : arts.filter(isActiveArt).length + ' × 1,00 €'})</td>
             <td style="padding: 2mm 3mm; border: 1px solid #cbd5e1; text-align: right; font-weight: 700;">${depositFee.toFixed(2)} €</td>
           </tr>
           <tr>
@@ -1594,7 +1701,7 @@ const BILAN_COMPACT_MAX_ROWS = 11; // au-delà, la fiche passe en pleine page A4
 function buildDeposantBilanCompactHTML(d) {
   const arts = appState.articles.filter(a => a.deposantId === d.id);
   const sold = arts.filter(a => a.status === 'sold');
-  const depositFee = getDeposantDepositFee(d, arts.length);
+  const depositFee = getDeposantDepositFee(d, arts.filter(isActiveArt).length);
   const gross = sold.reduce((sum, a) => sum + Number(a.price), 0);
   const commission = gross * SALES_COMMISSION_RATE;
   const net = gross * SELLER_PAYOUT_RATE;
@@ -1614,7 +1721,7 @@ function buildDeposantBilanCompactHTML(d) {
       </div>
       <div style="background:#f8fafc;border:1px solid #cbd5e1;border-radius:3px;padding:1.2mm 2mm;margin-bottom:1.5mm;line-height:1.35;">
         <div><strong>${escapeHtml(d.nom)} ${escapeHtml(d.prenom)}</strong>${d.commune ? ' • ' + escapeHtml(d.commune) : ''}</div>
-        <div>Tél : ${escapeHtml(d.tel || '-')} • Déposés : ${arts.length} • Vendus : ${sold.length}</div>
+        <div>Tél : ${escapeHtml(d.tel || '-')} • Déposés : ${arts.filter(isActiveArt).length} • Vendus : ${sold.length}</div>
       </div>
       <table style="width:100%;border-collapse:collapse;table-layout:fixed;font-size:8px;margin-bottom:1.5mm;">
         <thead><tr style="background:#e2e8f0;text-align:left;">
@@ -1626,11 +1733,11 @@ function buildDeposantBilanCompactHTML(d) {
             <td style="${td}font-family:monospace;font-weight:700;">${escapeHtml(a.code)}</td>
             <td style="${td}white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(a.brandModel)}${a.size ? ' ' + escapeHtml(a.size) : ''}</td>
             <td style="${td}text-align:right;font-weight:700;">${Number(a.price).toFixed(2)} €</td>
-            <td style="${td}text-align:center;font-weight:800;color:${a.status === 'sold' ? '#059669' : '#d97706'};">${a.status === 'sold' ? 'VENDU' : 'INVENDU'}</td>
+            <td style="${td}text-align:center;font-weight:800;color:${a.status === 'sold' ? '#059669' : a.status === 'cancelled' ? '#64748b' : '#d97706'};">${a.status === 'sold' ? 'VENDU' : a.status === 'cancelled' ? 'ANNULÉ' : 'INVENDU'}</td>
           </tr>`).join('')}</tbody>
       </table>
       <table style="width:100%;border-collapse:collapse;font-size:8.5px;margin-bottom:2mm;">
-        <tr><td style="${tot}background:#f8fafc;">Frais de dépôt (${d.isPro ? 'Pro : 0 €' : arts.length + ' × 1,00 €'})</td><td style="${tot}text-align:right;font-weight:700;">${depositFee.toFixed(2)} €</td></tr>
+        <tr><td style="${tot}background:#f8fafc;">Frais de dépôt (${d.isPro ? 'Pro : 0 €' : arts.filter(isActiveArt).length + ' × 1,00 €'})</td><td style="${tot}text-align:right;font-weight:700;">${depositFee.toFixed(2)} €</td></tr>
         <tr><td style="${tot}background:#f8fafc;">Total brut des ventes (${sold.length} art.)</td><td style="${tot}text-align:right;font-weight:700;">${gross.toFixed(2)} €</td></tr>
         <tr><td style="${tot}background:#f8fafc;">Commission club (10%)</td><td style="${tot}text-align:right;color:#64748b;">- ${commission.toFixed(2)} €</td></tr>
         <tr style="background:#eef2ff;"><td style="padding:1.2mm 1.5mm;border:1.5px solid #4f46e5;font-weight:900;color:#312e81;">NET À REVERSER (90%)</td><td style="padding:1.2mm 1.5mm;border:1.5px solid #4f46e5;text-align:right;font-size:11px;font-weight:900;color:#312e81;">${net.toFixed(2)} €</td></tr>
@@ -1769,6 +1876,116 @@ function printBarcodeSheetsDirect() {
     }
   });
   setTimeout(() => window.print(), 120);
+}
+
+// ===== Annulation d'une vente ou d'un dépôt (espace Caisses) =====
+function isActiveArt(a) { return a.status !== 'cancelled'; }
+
+function lookupArticleForCancel() {
+  if (!appState.isCaissesUnlocked) return;
+  const code = document.getElementById('cancel-art-input').value.trim().toUpperCase();
+  const box = document.getElementById('cancel-art-result');
+  if (!code) { box.innerHTML = ''; return; }
+  const art = appState.articles.find(a => String(a.code).toUpperCase() === code);
+  if (!art) { box.innerHTML = `<p class="text-sm font-bold text-rose-600">Aucun article n° ${escapeHtml(code)}.</p>`; return; }
+  const dep = appState.deposants.find(d => d.id === art.deposantId);
+  const sale = art.status === 'sold' ? appState.sales.find(s => (s.articleIds || []).includes(art.id)) : null;
+  let badge, info = '', btn;
+  if (art.status === 'sold') {
+    badge = '<span class="text-[11px] font-extrabold uppercase px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">Vendu</span>';
+    if (sale) info = `Vente du ${new Date(sale.date).toLocaleString('fr-FR')} • ${escapeHtml(sale.paymentMethod || '')} • ${(sale.articleIds || []).length} article(s) sur ce ticket`;
+    btn = `<button onclick="cancelSaleForArticle('${art.id}')" class="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-sm">Annuler la vente</button>`;
+  } else if (art.status === 'cancelled') {
+    badge = '<span class="text-[11px] font-extrabold uppercase px-2 py-0.5 rounded bg-slate-200 text-slate-700">Dépôt annulé</span>';
+    btn = `<button onclick="reactivateDepositForArticle('${art.id}')" class="px-4 py-2.5 rounded-xl bg-slate-700 hover:bg-slate-800 text-white font-bold text-sm">Réactiver le dépôt</button>`;
+  } else {
+    badge = '<span class="text-[11px] font-extrabold uppercase px-2 py-0.5 rounded bg-sky-100 text-sky-800">En vente</span>';
+    btn = `<button onclick="cancelDepositForArticle('${art.id}')" class="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-sm">Annuler le dépôt</button>`;
+  }
+  box.innerHTML = `
+    <div class="p-4 rounded-xl border border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-3">
+      <div class="min-w-0">
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="font-mono-code text-xs font-bold px-2 py-0.5 rounded bg-slate-900 text-white">N° ${escapeHtml(art.code)}</span>${badge}
+          <span class="font-bold text-sm text-slate-900">${escapeHtml(art.brandModel)}</span>
+        </div>
+        <div class="text-xs text-slate-600 mt-1">${escapeHtml(art.type)} • Taille ${escapeHtml(art.size)} • <strong>${Number(art.price).toFixed(2)} €</strong> • Déposant : ${dep ? escapeHtml(dep.depositNumber + ' ' + dep.nom + ' ' + dep.prenom) : 'inconnu'}</div>
+        ${info ? `<div class="text-xs text-slate-500 mt-0.5">${info}</div>` : ''}
+        ${dep && dep.restituted ? '<div class="text-xs font-bold text-amber-700 mt-0.5">⚠ Dossier déjà marqué « restitué »</div>' : ''}
+      </div>
+      ${btn}
+    </div>`;
+}
+
+function afterCancelRefresh() {
+  saveAppData(true);
+  renderCaissesDashboard();
+  lookupArticleForCancel();
+}
+
+function cancelSaleForArticle(artId) {
+  if (!appState.isCaissesUnlocked) return;
+  const art = appState.articles.find(a => a.id === artId);
+  if (!art || art.status !== 'sold') { showToast('Cet article n\'est plus vendu.', 'warning'); lookupArticleForCancel(); return; }
+  const dep = appState.deposants.find(d => d.id === art.deposantId);
+  const warn = dep && dep.restituted ? ' Attention : le dossier du déposant est déjà marqué restitué.' : '';
+  openConfirmModal('Annuler la vente ?',
+    `L'article n° ${art.code} (${art.brandModel}, ${Number(art.price).toFixed(2)} €) sera retiré de la vente et remis en vente avec le même numéro. Pensez à rembourser l'acheteur.${warn}`,
+    () => {
+      const a = appState.articles.find(x => x.id === artId);
+      if (!a || a.status !== 'sold') { showToast('Article déjà modifié sur un autre appareil.', 'warning'); lookupArticleForCancel(); return; }
+      a.status = 'available';
+      delete a.soldAt;
+      const sale = appState.sales.find(s => (s.articleIds || []).includes(a.id));
+      if (sale) {
+        sale.articleIds = sale.articleIds.filter(id => id !== a.id);
+        if (sale.articleIds.length === 0) {
+          appState.sales = appState.sales.filter(s => s.id !== sale.id);
+        } else {
+          sale.total = sale.articleIds.reduce((sum, id) => {
+            const x = appState.articles.find(y => y.id === id);
+            return sum + (x ? Number(x.price) : 0);
+          }, 0);
+        }
+      }
+      afterCancelRefresh();
+      showToast(`Vente annulée : article n° ${a.code} de nouveau en vente.`, 'success');
+    });
+}
+
+function cancelDepositForArticle(artId) {
+  if (!appState.isCaissesUnlocked) return;
+  const art = appState.articles.find(a => a.id === artId);
+  if (!art) return;
+  if (art.status === 'sold') { showToast('Article vendu : annulez d\'abord la vente.', 'warning'); return; }
+  if (art.status === 'cancelled') { showToast('Dépôt déjà annulé.', 'info'); return; }
+  openConfirmModal('Annuler le dépôt ?',
+    `L'article n° ${art.code} (${art.brandModel}) sera marqué « dépôt annulé ». Son numéro reste réservé et ne sera jamais réattribué. Les frais de dépôt de cet article ne seront plus comptés.`,
+    () => {
+      const a = appState.articles.find(x => x.id === artId);
+      if (!a || a.status !== 'available') { showToast('Article déjà modifié (vendu ou annulé).', 'warning'); lookupArticleForCancel(); return; }
+      a.status = 'cancelled';
+      a.cancelledAt = new Date().toISOString();
+      appState.cart = appState.cart.filter(i => i.id !== a.id);
+      afterCancelRefresh();
+      showToast(`Dépôt annulé : le n° ${a.code} reste réservé.`, 'success');
+    });
+}
+
+function reactivateDepositForArticle(artId) {
+  if (!appState.isCaissesUnlocked) return;
+  const art = appState.articles.find(a => a.id === artId);
+  if (!art || art.status !== 'cancelled') return;
+  openConfirmModal('Réactiver le dépôt ?',
+    `L'article n° ${art.code} sera de nouveau en vente et ses frais de dépôt seront recomptés.`,
+    () => {
+      const a = appState.articles.find(x => x.id === artId);
+      if (!a || a.status !== 'cancelled') return;
+      a.status = 'available';
+      delete a.cancelledAt;
+      afterCancelRefresh();
+      showToast(`Dépôt réactivé : article n° ${a.code}.`, 'success');
+    });
 }
 
 function exportSpreadsheetCSV() {
