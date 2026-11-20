@@ -708,7 +708,7 @@ const DEPOT_POSTES_CONFIG = {
     minArt: 1000,
     maxArt: 1999,
     isPro: false,
-    description: 'Enregistrement direct sur place (Déposants DEP01+, Articles 1000 à 1999, 1 €/art.).'
+    description: 'Enregistrement direct sur place (Articles 1000 à 1999, 1 €/art.).'
   },
   'POSTE_2': {
     id: 'poste2',
@@ -717,7 +717,7 @@ const DEPOT_POSTES_CONFIG = {
     minArt: 2000,
     maxArt: 2999,
     isPro: false,
-    description: 'Enregistrement direct sur place (Déposants DEP01+, Articles 2000 à 2999, 1 €/art.).'
+    description: 'Enregistrement direct sur place (Articles 2000 à 2999, 1 €/art.).'
   },
   'POSTE_3': {
     id: 'poste3',
@@ -726,7 +726,7 @@ const DEPOT_POSTES_CONFIG = {
     minArt: 3000,
     maxArt: 3999,
     isPro: false,
-    description: 'Enregistrement direct sur place (Déposants DEP01+, Articles 3000 à 3999, 1 €/art.).'
+    description: 'Enregistrement direct sur place (Articles 3000 à 3999, 1 €/art.).'
   },
   'POSTE_4': {
     id: 'poste4',
@@ -735,7 +735,7 @@ const DEPOT_POSTES_CONFIG = {
     minArt: 4000,
     maxArt: 4999,
     isPro: false,
-    description: 'Enregistrement direct sur place (Déposants DEP01+, Articles 4000 à 4999, 1 €/art.).'
+    description: 'Enregistrement direct sur place (Articles 4000 à 4999, 1 €/art.).'
   },
   'POSTE_PRO': {
     id: 'postepro',
@@ -846,9 +846,63 @@ function escapeHtml(str) {
   return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
 }
 
+// ===== Choix du poste de dépôt =====
+function openPosteChooser() {
+  let ov = document.getElementById('poste-chooser-modal');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.id = 'poste-chooser-modal';
+    ov.className = 'hidden fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 no-print';
+    document.body.appendChild(ov);
+  }
+  const admin = appState.isCaissesUnlocked;
+  const current = appState.unlockedDepotPoste;
+  ov.innerHTML = `
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 fade-in space-y-4">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <h3 class="text-lg font-extrabold text-slate-900">Choisissez votre poste</h3>
+          <p class="text-xs text-slate-500">${admin ? 'Accès libre : Caisses déverrouillées, aucun mot de passe de poste demandé.' : 'Cliquez sur votre poste, puis saisissez son mot de passe.'}</p>
+        </div>
+        <button onclick="closePosteChooser()" class="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+      <div class="space-y-2">
+        ${Object.entries(DEPOT_POSTES_CONFIG).map(([key, p]) => `
+          <button onclick="choosePoste('${key}')" class="w-full text-left p-3 rounded-xl border ${current && current.id === p.id ? 'border-sky-500 bg-sky-50' : 'border-slate-200 hover:bg-slate-50'} flex items-center justify-between gap-3 transition">
+            <div>
+              <div class="font-extrabold text-sm text-slate-900">${escapeHtml(p.name)}${current && current.id === p.id ? ' <span class="text-[10px] font-bold text-sky-700">(poste actuel)</span>' : ''}</div>
+              <div class="text-[11px] text-slate-500">${p.isPro ? 'Matériel Pro • articles à partir de ' + p.minArt : 'Articles n° ' + p.minArt + ' à ' + p.maxArt}</div>
+            </div>
+            <i data-lucide="${admin ? 'unlock' : 'lock'}" class="w-4 h-4 ${admin ? 'text-emerald-600' : 'text-slate-400'}"></i>
+          </button>`).join('')}
+      </div>
+    </div>`;
+  ov.classList.remove('hidden');
+  refreshIcons();
+}
+
+function closePosteChooser() {
+  const ov = document.getElementById('poste-chooser-modal');
+  if (ov) ov.classList.add('hidden');
+}
+
+function choosePoste(key) {
+  const poste = DEPOT_POSTES_CONFIG[key];
+  if (!poste) return;
+  closePosteChooser();
+  const current = appState.unlockedDepotPoste;
+  if (appState.isCaissesUnlocked || (current && current.id === poste.id)) {
+    if (!current || current.id !== poste.id) appState.selectedVolunteerDepId = null;
+    appState.unlockedDepotPoste = poste;
+    activateView('depots');
+    return;
+  }
+  openAccessModal('depots', key);
+}
+
 function switchMainTab(target) {
   if (target === 'locked') { activateView('locked'); return; }
-  if (target === 'depots') { if (appState.unlockedDepotPoste) activateView('depots'); else openAccessModal('depots'); return; }
+  if (target === 'depots') { if (appState.unlockedDepotPoste) activateView('depots'); else openPosteChooser(); return; }
   if (target === 'ventes') { if (appState.isVentesUnlocked) activateView('ventes'); else openAccessModal('ventes'); return; }
   if (target === 'caisses') { if (appState.isCaissesUnlocked) activateView('caisses'); else openAccessModal('caisses'); return; }
 }
@@ -875,8 +929,10 @@ function activateView(tabName) {
   refreshIcons();
 }
 
-function openAccessModal(target) {
+let pendingPosteKey = null;
+function openAccessModal(target, posteKey) {
   appState.pendingAccessTarget = target;
+  pendingPosteKey = posteKey || null;
   const titleEl = document.getElementById('access-modal-title');
   const subEl = document.getElementById('access-modal-subtitle');
   const errEl = document.getElementById('access-error-msg');
@@ -886,7 +942,7 @@ function openAccessModal(target) {
   
   if (target === 'depots') {
     titleEl.textContent = 'Accès Bénévoles Dépôts';
-    subEl.textContent = 'Saisissez le mot de passe de votre poste (Poste 1, 2, 3, 4 ou Pro)';
+    subEl.textContent = (posteKey && DEPOT_POSTES_CONFIG[posteKey]) ? 'Mot de passe : ' + DEPOT_POSTES_CONFIG[posteKey].name : 'Saisissez le mot de passe de votre poste (Poste 1, 2, 3, 4 ou Pro)';
   } else if (target === 'ventes') {
     titleEl.textContent = 'Accès Bénévoles Ventes';
     subEl.textContent = 'Espace sécurisé caisse/scan';
@@ -902,12 +958,14 @@ function openAccessModal(target) {
 function closeAccessModal() {
   document.getElementById('access-modal').classList.add('hidden');
   appState.pendingAccessTarget = null;
+  pendingPosteKey = null;
 }
 
 async function submitAccessPassword(e) {
   e.preventDefault();
   const rawPwd = document.getElementById('access-password-input').value.trim();
   const target = appState.pendingAccessTarget;
+  const posteKey = pendingPosteKey;
   const errEl = document.getElementById('access-error-msg');
   if (!rawPwd) return;
 
@@ -917,18 +975,25 @@ async function submitAccessPassword(e) {
   if (hashed === AUTH_HASHES.CAISSES) {
     appState.isCaissesUnlocked = true;
     appState.isVentesUnlocked = true;
-    if (!appState.unlockedDepotPoste) {
-      appState.unlockedDepotPoste = DEPOT_POSTES_CONFIG['POSTE_1'];
-    }
     closeAccessModal();
     showToast('Accès Caisses déverrouillé (Tous les espaces débloqués)', 'success');
+    if (target === 'depots') {
+      if (posteKey && DEPOT_POSTES_CONFIG[posteKey]) {
+        appState.unlockedDepotPoste = DEPOT_POSTES_CONFIG[posteKey];
+        appState.selectedVolunteerDepId = null;
+        activateView('depots');
+      } else openPosteChooser();
+      return;
+    }
     activateView(target || 'caisses');
     return;
   }
 
   if (target === 'depots') {
     let matchedKey = null;
-    if (hashed === AUTH_HASHES.POSTE_1) matchedKey = 'POSTE_1';
+    if (posteKey && DEPOT_POSTES_CONFIG[posteKey]) {
+      if (hashed === AUTH_HASHES[posteKey]) matchedKey = posteKey;
+    } else if (hashed === AUTH_HASHES.POSTE_1) matchedKey = 'POSTE_1';
     else if (hashed === AUTH_HASHES.POSTE_2) matchedKey = 'POSTE_2';
     else if (hashed === AUTH_HASHES.POSTE_3) matchedKey = 'POSTE_3';
     else if (hashed === AUTH_HASHES.POSTE_4) matchedKey = 'POSTE_4';
@@ -941,7 +1006,7 @@ async function submitAccessPassword(e) {
       showToast(`Accès autorisé : ${appState.unlockedDepotPoste.name}`, 'success');
       activateView('depots');
     } else {
-      errEl.textContent = 'Mot de passe de poste incorrect.';
+      errEl.textContent = posteKey ? 'Mot de passe incorrect pour ce poste.' : 'Mot de passe de poste incorrect.';
       errEl.classList.remove('hidden');
     }
   } else if (target === 'ventes') {
@@ -960,7 +1025,7 @@ async function submitAccessPassword(e) {
   }
 }
 
-function switchDepotPostePrompt() { openAccessModal('depots'); }
+function switchDepotPostePrompt() { openPosteChooser(); }
 function isAnyVolunteerUnlocked() { return Boolean(appState.unlockedDepotPoste || appState.isVentesUnlocked || appState.isCaissesUnlocked); }
 
 function lockAllVolunteerSpaces() {
@@ -988,7 +1053,7 @@ function updateVolunteerHeaderUI() {
   const lockDep = document.getElementById('icon-lock-depots');
   const lockVen = document.getElementById('icon-lock-ventes');
   const lockCai = document.getElementById('icon-lock-caisses');
-  if (lockDep) lockDep.setAttribute('data-lucide', appState.unlockedDepotPoste ? 'unlock' : 'lock');
+  if (lockDep) lockDep.setAttribute('data-lucide', (appState.unlockedDepotPoste || appState.isCaissesUnlocked) ? 'unlock' : 'lock');
   if (lockVen) lockVen.setAttribute('data-lucide', appState.isVentesUnlocked ? 'unlock' : 'lock');
   if (lockCai) lockCai.setAttribute('data-lucide', appState.isCaissesUnlocked ? 'unlock' : 'lock');
 }
