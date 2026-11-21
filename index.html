@@ -224,6 +224,10 @@ body {
                 <input type="text" id="vol-dep-piece-num" required autocomplete="off" class="w-full px-3 py-2 rounded-xl border border-slate-300 text-sm uppercase">
               </div>
             </div>
+            <label id="row-pro-exempt" class="hidden items-center gap-2 p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-xs font-bold text-amber-900 cursor-pointer">
+              <input type="checkbox" id="vol-dep-exempt" checked class="w-4 h-4">
+              <span>Exonéré des frais de dépôt (1 € / article)</span>
+            </label>
             <button type="submit" class="w-full py-2.5 px-4 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-sm shadow-sm transition flex items-center justify-center gap-2">
               <i data-lucide="plus-circle" class="w-4 h-4"></i>
               <span>Ouvrir la fiche de dépôt</span>
@@ -406,8 +410,11 @@ body {
                   <i data-lucide="file-check" class="w-4 h-4"></i><span>Chèque</span>
                 </button>
               </div>
+              <button type="button" onclick="selectPaymentMethod('Mixte')" id="pay-mixte" class="pay-method-btn mt-2 w-full py-2.5 px-2 rounded-xl border border-slate-200 bg-white text-slate-700 font-bold text-xs flex items-center justify-center gap-2">
+                <i data-lucide="coins" class="w-4 h-4"></i><span>Paiement mixte (espèces + CB / chèque)</span>
+              </button>
             </div>
-            <button onclick="checkoutCart()" class="w-full py-3.5 px-5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-base shadow-lg transition flex items-center justify-center gap-2">
+            <button onclick="startCheckout()" class="w-full py-3.5 px-5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-base shadow-lg transition flex items-center justify-center gap-2">
               <i data-lucide="check-circle" class="w-5 h-5"></i>
               <span>Valider l'encaissement</span>
             </button>
@@ -445,6 +452,10 @@ body {
         <button onclick="printBourseRecap()" class="p-4 rounded-xl bg-white text-slate-900 hover:bg-emerald-50 transition text-left shadow-sm border border-slate-200 flex items-start gap-3">
           <div class="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0"><i data-lucide="file-text" class="w-5 h-5"></i></div>
           <div><div class="font-extrabold text-sm">Bilan de la bourse (PDF)</div><div class="text-[11px] text-slate-500 mt-0.5">Ventes, recette, bénéfice, dépôts</div></div>
+        </button>
+        <button onclick="openRestitutionPosteModal()" class="p-4 rounded-xl bg-white text-slate-900 hover:bg-indigo-50 transition text-left shadow-sm border border-slate-200 flex items-start gap-3">
+          <div class="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0"><i data-lucide="wallet" class="w-5 h-5"></i></div>
+          <div><div class="font-extrabold text-sm">Sommes par poste</div><div class="text-[11px] text-slate-500 mt-0.5">Préparer les caisses de restitution</div></div>
         </button>
         <button onclick="focusRestitutionSection()" class="p-4 rounded-xl bg-amber-400 text-slate-950 hover:bg-amber-300 transition text-left shadow-sm font-bold flex items-start gap-3">
           <div class="w-10 h-10 rounded-xl bg-slate-950/10 text-slate-950 flex items-center justify-center shrink-0"><i data-lucide="hand-coins" class="w-5 h-5"></i></div>
@@ -595,6 +606,10 @@ body {
         <input type="tel" id="pro-shop-tel" placeholder="04 79 ..." class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-sm">
       </div>
     </div>
+    <label class="flex items-center gap-2 p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-xs font-bold text-amber-900 cursor-pointer">
+      <input type="checkbox" id="pro-fee-exempt" checked class="w-4 h-4">
+      <span>Exonéré des frais de dépôt (1 € / article)</span>
+    </label>
     <div class="p-3 rounded-xl bg-amber-50 border border-amber-200 space-y-2">
       <p class="text-xs text-amber-900"><strong>Fichier CSV :</strong> téléchargez le modèle, remplissez-le (Excel, LibreOffice…), puis importez-le. Les lignes s'affichent ci-dessous pour contrôle avant validation.</p>
       <div class="flex flex-wrap gap-2">
@@ -788,9 +803,23 @@ let cashierMobileScanner = null;
 let isCashierCameraRunning = false;
 let scanBannerTimeout = null;
 
+// Un Pro est exonéré sauf si sa fiche indique feeExempt === false (anciennes fiches Pro : exonérées)
+function isFeeExempt(d) { return !!d && d.isPro && d.feeExempt !== false; }
+
 function getDeposantDepositFee(deposant, articleCount) {
-  if (!deposant || deposant.isPro) return 0;
+  if (!deposant || isFeeExempt(deposant)) return 0;
   return articleCount * DEPOSIT_FEE_PARTICULIER;
+}
+
+function toggleProFeeExempt(depId) {
+  const dep = appState.deposants.find(d => d.id === depId);
+  if (!dep || !dep.isPro) return;
+  const nowExempt = isFeeExempt(dep);
+  if (!window.confirm(nowExempt ? `Facturer 1 € par article déposé à ${dep.nom} ?` : `Exonérer ${dep.nom} des frais de dépôt ?`)) return;
+  dep.feeExempt = !nowExempt;
+  saveAppData(true);
+  renderVolunteerActiveDossier();
+  renderPosteDeposantsList();
 }
 
 function safeStorageGet(key) {
@@ -1120,7 +1149,7 @@ function renderDepotPosteWorkspace() {
   document.getElementById('depot-poste-badge').textContent = poste.badge;
   document.getElementById('depot-poste-title').textContent = poste.name;
   document.getElementById('depot-poste-desc').textContent = poste.description;
-  document.getElementById('depot-poste-fee-pill').textContent = poste.isPro ? '0 € dépôt (Pro)' : '1 € / article déposé';
+  document.getElementById('depot-poste-fee-pill').textContent = poste.isPro ? 'Pro : exonération au choix' : '1 € / article déposé';
 
   const btnPro = document.getElementById('btn-import-pro');
   if (poste.isPro) {
@@ -1129,7 +1158,11 @@ function renderDepotPosteWorkspace() {
     document.getElementById('depot-new-dep-heading').textContent = 'Enregistrer un professionnel / magasin';
     document.getElementById('lbl-vol-nom').textContent = 'Enseigne / Magasin *';
     document.getElementById('lbl-vol-prenom').textContent = 'Responsable *';
+    document.getElementById('row-pro-exempt').classList.remove('hidden');
+    document.getElementById('row-pro-exempt').classList.add('flex');
   } else {
+    document.getElementById('row-pro-exempt').classList.add('hidden');
+    document.getElementById('row-pro-exempt').classList.remove('flex');
     btnPro.classList.add('hidden');
     btnPro.classList.remove('inline-flex');
     document.getElementById('depot-new-dep-heading').textContent = 'Enregistrer un nouveau déposant';
@@ -1161,6 +1194,7 @@ function handleCreateDeposantVolunteer(e) {
     postId: poste.id,
     nom, prenom, tel, commune, pieceType, pieceNum,
     isPro: poste.isPro,
+    ...(poste.isPro ? { feeExempt: document.getElementById('vol-dep-exempt').checked } : {}),
     restituted: false,
     createdAt: new Date().toISOString()
   };
@@ -1228,10 +1262,21 @@ function renderVolunteerActiveDossier() {
   const articles = appState.articles.filter(a => a.deposantId === dep.id);
   document.getElementById('vol-dossier-num').textContent = dep.depositNumber;
   document.getElementById('vol-dossier-name').textContent = `${dep.nom} ${dep.prenom}`;
-  document.getElementById('vol-dossier-type-pill').textContent = dep.isPro ? 'Professionnel (0 € dépôt)' : 'Particulier (1 € / article)';
+  document.getElementById('vol-dossier-type-pill').textContent = dep.isPro ? (isFeeExempt(dep) ? 'Professionnel (0 € dépôt)' : 'Professionnel (1 € / article)') : 'Particulier (1 € / article)';
   document.getElementById('vol-dossier-type-pill').className = dep.isPro
     ? 'text-xs font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900'
     : 'text-xs font-bold px-2.5 py-0.5 rounded-full bg-sky-100 text-sky-800';
+  let exBtn = document.getElementById('vol-dossier-exempt-btn');
+  if (!exBtn) {
+    exBtn = document.createElement('button');
+    exBtn.id = 'vol-dossier-exempt-btn';
+    exBtn.type = 'button';
+    exBtn.className = 'text-[11px] font-bold text-amber-800 underline ml-2';
+    document.getElementById('vol-dossier-type-pill').insertAdjacentElement('afterend', exBtn);
+  }
+  exBtn.classList.toggle('hidden', !dep.isPro);
+  exBtn.textContent = isFeeExempt(dep) ? 'Facturer les 1 €' : 'Exonérer';
+  exBtn.onclick = () => toggleProFeeExempt(dep.id);
   document.getElementById('vol-dossier-info').textContent = `Tél: ${dep.tel}${dep.commune ? ' • ' + dep.commune : ''}${dep.pieceType ? ' • ' + dep.pieceType + ' n° ' + (dep.pieceNum || '?') : ''}${dep.email ? ' • Email: ' + dep.email : ''}`;
   document.getElementById('vol-dossier-fees').textContent = getDeposantDepositFee(dep, articles.filter(isActiveArt).length).toFixed(2) + ' €';
   document.getElementById('vol-dossier-art-count').textContent = articles.filter(isActiveArt).length;
@@ -1397,7 +1442,7 @@ function processProBulkImport() {
   appState.deposants.push({
     id: depId, depositNumber: depCode, postId: poste.id,
     nom: shopName, prenom: 'PRO', tel, email: '',
-    isPro: true, restituted: false, createdAt: new Date().toISOString()
+    isPro: true, feeExempt: document.getElementById('pro-fee-exempt').checked, restituted: false, createdAt: new Date().toISOString()
   });
 
   let importedCount = 0;
@@ -1431,6 +1476,7 @@ function processProBulkImport() {
     return;
   }
   appState.selectedVolunteerDepId = depId;
+  document.getElementById('pro-fee-exempt').checked = true;
   saveAppData(true);
   closeProImportModal();
   renderDepotPosteWorkspace();
@@ -1598,14 +1644,127 @@ function clearCart() {
 
 function selectPaymentMethod(method) {
   appState.paymentMethod = method;
+  pendingMixedPayments = null;
+  const on = 'border-2 border-emerald-600 bg-emerald-50 text-emerald-800';
+  const off = 'border border-slate-200 bg-white text-slate-700';
   const map = { 'Carte Bancaire': 'pay-cb', 'Espèces': 'pay-esp', 'Chèque': 'pay-chq' };
   Object.entries(map).forEach(([label, id]) => {
     const btn = document.getElementById(id);
     if (!btn) return;
-    btn.className = (label === method)
-      ? 'pay-method-btn py-2.5 px-2 rounded-xl border-2 border-emerald-600 bg-emerald-50 text-emerald-800 font-bold text-xs flex flex-col items-center gap-1'
-      : 'pay-method-btn py-2.5 px-2 rounded-xl border border-slate-200 bg-white text-slate-700 font-bold text-xs flex flex-col items-center gap-1';
+    btn.className = 'pay-method-btn py-2.5 px-2 rounded-xl ' + (label === method ? on : off) + ' font-bold text-xs flex flex-col items-center gap-1';
   });
+  const mixte = document.getElementById('pay-mixte');
+  if (mixte) mixte.className = 'pay-method-btn mt-2 w-full py-2.5 px-2 rounded-xl ' + (method === 'Mixte' ? on : off) + ' font-bold text-xs flex items-center justify-center gap-2';
+}
+
+// ===== Paiement mixte =====
+let pendingMixedPayments = null;
+const round2 = x => Math.round(Number(x) * 100) / 100;
+function cartTotalAmount() { return round2(appState.cart.reduce((sum, i) => sum + Number(i.price), 0)); }
+function paymentLabel(sale) {
+  if (sale.payments && sale.payments.length) return 'Mixte : ' + sale.payments.map(p => `${p.method} ${Number(p.amount).toFixed(2)} €`).join(' + ');
+  return sale.paymentMethod || '';
+}
+
+function startCheckout() {
+  if (appState.cart.length === 0) { showToast('Panier vide.', 'warning'); return; }
+  if (appState.paymentMethod === 'Mixte') {
+    const sum = pendingMixedPayments ? round2(pendingMixedPayments.reduce((x, p) => x + p.amount, 0)) : -1;
+    if (sum !== cartTotalAmount()) { openMixedPaymentModal(); return; }
+  }
+  checkoutCart();
+}
+
+function openMixedPaymentModal() {
+  const total = cartTotalAmount();
+  let ov = document.getElementById('mixed-pay-modal');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.id = 'mixed-pay-modal';
+    ov.className = 'hidden fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 no-print';
+    document.body.appendChild(ov);
+  }
+  ov.innerHTML = `
+    <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 fade-in space-y-4">
+      <div>
+        <h3 class="text-lg font-extrabold text-slate-900">Paiement mixte</h3>
+        <p class="text-xs text-slate-500">Une partie en espèces, le reste en carte ou chèque.</p>
+      </div>
+      <div class="flex items-baseline justify-between p-3 rounded-xl bg-slate-100">
+        <span class="text-xs font-bold uppercase text-slate-600">Total à encaisser</span>
+        <span class="text-2xl font-black text-slate-900">${total.toFixed(2)} €</span>
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Montant payé en espèces (€)</label>
+        <input id="mixed-cash" type="text" inputmode="decimal" autocomplete="off" oninput="updateMixedPayment()" onkeydown="if(event.key==='Enter')confirmMixedPayment()" class="w-full px-4 py-3 rounded-xl border-2 border-slate-300 text-lg font-bold">
+      </div>
+      <div>
+        <label class="block text-xs font-bold text-slate-700 uppercase mb-1">Le reste est payé par</label>
+        <div class="grid grid-cols-2 gap-2">
+          <label class="flex items-center justify-center gap-2 p-2.5 rounded-xl border border-slate-300 text-sm font-bold cursor-pointer"><input type="radio" name="mixed-other" value="Carte Bancaire" checked onchange="updateMixedPayment()"> Carte (CB)</label>
+          <label class="flex items-center justify-center gap-2 p-2.5 rounded-xl border border-slate-300 text-sm font-bold cursor-pointer"><input type="radio" name="mixed-other" value="Chèque" onchange="updateMixedPayment()"> Chèque</label>
+        </div>
+      </div>
+      <div id="mixed-summary" class="text-sm font-bold text-slate-700 min-h-[2.5rem]"></div>
+      <div class="flex gap-2 justify-end">
+        <button onclick="closeMixedPaymentModal(true)" class="px-4 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-bold text-sm">Annuler</button>
+        <button id="mixed-confirm-btn" onclick="confirmMixedPayment()" class="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-sm">Valider l'encaissement</button>
+      </div>
+    </div>`;
+  ov.classList.remove('hidden');
+  updateMixedPayment();
+  setTimeout(() => document.getElementById('mixed-cash')?.focus(), 60);
+}
+
+function readMixedForm() {
+  const total = cartTotalAmount();
+  const cash = round2(parseFloat(String(document.getElementById('mixed-cash').value).replace(/[\s€]/g, '').replace(',', '.')));
+  const other = document.querySelector('input[name="mixed-other"]:checked').value;
+  const valid = !isNaN(cash) && cash > 0 && cash < total;
+  return { total, cash, other, rest: round2(total - (isNaN(cash) ? 0 : cash)), valid };
+}
+
+function updateMixedPayment() {
+  const f = readMixedForm();
+  const box = document.getElementById('mixed-summary');
+  const btn = document.getElementById('mixed-confirm-btn');
+  if (f.valid) {
+    box.innerHTML = `Espèces <span class="text-emerald-700">${f.cash.toFixed(2)} €</span> + ${escapeHtml(f.other)} <span class="text-emerald-700">${f.rest.toFixed(2)} €</span>`;
+  } else {
+    box.innerHTML = '<span class="text-slate-400">Saisissez un montant en espèces supérieur à 0 et inférieur au total.</span>';
+  }
+  btn.disabled = !f.valid;
+  btn.classList.toggle('opacity-40', !f.valid);
+}
+
+function confirmMixedPayment() {
+  const f = readMixedForm();
+  if (!f.valid) return;
+  pendingMixedPayments = [{ method: 'Espèces', amount: f.cash }, { method: f.other, amount: f.rest }];
+  closeMixedPaymentModal(false);
+  checkoutCart();
+}
+
+function closeMixedPaymentModal(cancelled) {
+  const ov = document.getElementById('mixed-pay-modal');
+  if (ov) ov.classList.add('hidden');
+  if (cancelled) pendingMixedPayments = null;
+}
+
+// Remboursement partiel d'un ticket mixte : on déduit d'abord la part CB/chèque, puis les espèces
+function adjustMixedPayments(sale, refund) {
+  if (!sale.payments || !sale.payments.length) return;
+  let left = round2(refund);
+  [...sale.payments].sort((x, y) => (x.method === 'Espèces') - (y.method === 'Espèces')).forEach(p => {
+    const cut = Math.min(p.amount, left);
+    p.amount = round2(p.amount - cut);
+    left = round2(left - cut);
+  });
+  sale.payments = sale.payments.filter(p => p.amount > 0);
+  if (sale.payments.length <= 1) {
+    if (sale.payments[0]) sale.paymentMethod = sale.payments[0].method;
+    delete sale.payments;
+  }
 }
 
 function checkoutCart() {
@@ -1613,16 +1772,24 @@ function checkoutCart() {
   const now = new Date().toISOString();
   const soldIds = appState.cart.map(i => i.id);
   const total = appState.cart.reduce((sum, i) => sum + Number(i.price), 0);
-  
+  let payments = null;
+  if (appState.paymentMethod === 'Mixte') {
+    const sum = pendingMixedPayments ? round2(pendingMixedPayments.reduce((x, p) => x + p.amount, 0)) : -1;
+    if (sum !== round2(total)) { openMixedPaymentModal(); return; }
+    payments = pendingMixedPayments;
+  }
+  pendingMixedPayments = null;
+
   appState.articles.forEach(art => {
     if (soldIds.includes(art.id)) { art.status = 'sold'; art.soldAt = now; }
   });
-  appState.sales.push({ id: 'VENTE-' + Date.now(), articleIds: soldIds, total, paymentMethod: appState.paymentMethod, date: now });
+  appState.sales.push({ id: 'VENTE-' + Date.now(), articleIds: soldIds, total, paymentMethod: appState.paymentMethod, ...(payments ? { payments } : {}), date: now });
   appState.cart = [];
   saveAppData(true);
   renderCart();
   renderAvailableStock();
-  showToast(`Encaissement validé : ${total.toFixed(2)} €`, 'success');
+  showToast(payments ? `Encaissement validé : ${total.toFixed(2)} € (${payments.map(p => p.method + ' ' + p.amount.toFixed(2) + ' €').join(' + ')})` : `Encaissement validé : ${total.toFixed(2)} €`, 'success');
+  if (payments) selectPaymentMethod('Carte Bancaire');
 }
 
 // Logique Caisses & Bilan
@@ -1635,9 +1802,9 @@ function renderCaissesDashboard() {
 
   let totalDepositFees = 0;
   appState.deposants.forEach(d => {
-    if (d.depositNumber !== null && !d.isPro) {
+    if (d.depositNumber !== null) {
       const count = appState.articles.filter(a => a.deposantId === d.id && isActiveArt(a)).length;
-      totalDepositFees += count * DEPOSIT_FEE_PARTICULIER;
+      totalDepositFees += getDeposantDepositFee(d, count);
     }
   });
   const totalClubRevenue = totalDepositFees + salesCommission;
@@ -1683,7 +1850,7 @@ function renderBilanTable() {
         <td class="py-3 px-3 font-mono-code font-bold">${escapeHtml(d.depositNumber)}</td>
         <td class="py-3 px-3"><span class="font-bold">${escapeHtml(d.nom)} ${escapeHtml(d.prenom)}</span> ${d.isPro ? '<span class="text-[10px] px-1 rounded bg-amber-100">PRO</span>' : ''}</td>
         <td class="py-3 px-3 text-center text-xs">${arts.filter(isActiveArt).length} dép. / <span class="text-emerald-700 font-bold">${sold.length} vend.</span></td>
-        <td class="py-3 px-3 text-right text-xs font-bold">${d.isPro ? '0.00 €' : depositFee.toFixed(2) + ' €'}</td>
+        <td class="py-3 px-3 text-right text-xs font-bold">${depositFee.toFixed(2)} €</td>
         <td class="py-3 px-3 text-right font-semibold">${gross.toFixed(2)} €</td>
         <td class="py-3 px-3 text-right font-black text-indigo-700">${net.toFixed(2)} €</td>
         <td class="py-3 px-3 text-center">${d.restituted ? '<span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">Restitué</span>' : '<span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">En attente</span>'}</td>
@@ -1775,7 +1942,7 @@ function buildDeposantBilanHTML(d, isLast = true) {
       <div style="display: flex; justify-content: flex-end; margin-bottom: 8mm;">
         <table style="width: 75mm; border-collapse: collapse; font-size: 12px;">
           <tr>
-            <td style="padding: 2mm 3mm; border: 1px solid #cbd5e1; background: #f8fafc;">Frais de dépôt (${d.isPro ? 'Pro : 0 €' : arts.filter(isActiveArt).length + ' × 1,00 €'})</td>
+            <td style="padding: 2mm 3mm; border: 1px solid #cbd5e1; background: #f8fafc;">Frais de dépôt (${isFeeExempt(d) ? 'Pro : exonéré' : arts.filter(isActiveArt).length + ' × 1,00 €'})</td>
             <td style="padding: 2mm 3mm; border: 1px solid #cbd5e1; text-align: right; font-weight: 700;">${depositFee.toFixed(2)} €</td>
           </tr>
           <tr>
@@ -1847,7 +2014,7 @@ function buildDeposantBilanCompactHTML(d) {
           </tr>`).join('')}</tbody>
       </table>
       <table style="width:100%;border-collapse:collapse;font-size:8.5px;margin-bottom:2mm;">
-        <tr><td style="${tot}background:#f8fafc;">Frais de dépôt (${d.isPro ? 'Pro : 0 €' : arts.filter(isActiveArt).length + ' × 1,00 €'})</td><td style="${tot}text-align:right;font-weight:700;">${depositFee.toFixed(2)} €</td></tr>
+        <tr><td style="${tot}background:#f8fafc;">Frais de dépôt (${isFeeExempt(d) ? 'Pro : exonéré' : arts.filter(isActiveArt).length + ' × 1,00 €'})</td><td style="${tot}text-align:right;font-weight:700;">${depositFee.toFixed(2)} €</td></tr>
         <tr><td style="${tot}background:#f8fafc;">Total brut des ventes (${sold.length} art.)</td><td style="${tot}text-align:right;font-weight:700;">${gross.toFixed(2)} €</td></tr>
         <tr><td style="${tot}background:#f8fafc;">Commission club (10%)</td><td style="${tot}text-align:right;color:#64748b;">- ${commission.toFixed(2)} €</td></tr>
         <tr style="background:#eef2ff;"><td style="padding:1.2mm 1.5mm;border:1.5px solid #4f46e5;font-weight:900;color:#312e81;">NET À REVERSER (90%)</td><td style="padding:1.2mm 1.5mm;border:1.5px solid #4f46e5;text-align:right;font-size:11px;font-weight:900;color:#312e81;">${net.toFixed(2)} €</td></tr>
@@ -2003,7 +2170,7 @@ function lookupArticleForCancel() {
   let badge, info = '', btn;
   if (art.status === 'sold') {
     badge = '<span class="text-[11px] font-extrabold uppercase px-2 py-0.5 rounded bg-emerald-100 text-emerald-800">Vendu</span>';
-    if (sale) info = `Vente du ${new Date(sale.date).toLocaleString('fr-FR')} • ${escapeHtml(sale.paymentMethod || '')} • ${(sale.articleIds || []).length} article(s) sur ce ticket`;
+    if (sale) info = `Vente du ${new Date(sale.date).toLocaleString('fr-FR')} • ${escapeHtml(paymentLabel(sale))} • ${(sale.articleIds || []).length} article(s) sur ce ticket`;
     btn = `<button onclick="cancelSaleForArticle('${art.id}')" class="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-sm">Annuler la vente</button>`;
   } else if (art.status === 'cancelled') {
     badge = '<span class="text-[11px] font-extrabold uppercase px-2 py-0.5 rounded bg-slate-200 text-slate-700">Dépôt annulé</span>';
@@ -2033,6 +2200,12 @@ function afterCancelRefresh() {
   lookupArticleForCancel();
 }
 
+function saleMixedNote(artId) {
+  const sale = appState.sales.find(s => (s.articleIds || []).includes(artId));
+  if (!sale || !sale.payments) return '';
+  return ` Ticket en paiement mixte (${sale.payments.map(p => p.method + ' ' + Number(p.amount).toFixed(2) + ' €').join(' + ')}) : le remboursement est déduit d'abord de la part CB/chèque, puis des espèces.`;
+}
+
 function cancelSaleForArticle(artId) {
   if (!appState.isCaissesUnlocked) return;
   const art = appState.articles.find(a => a.id === artId);
@@ -2040,7 +2213,7 @@ function cancelSaleForArticle(artId) {
   const dep = appState.deposants.find(d => d.id === art.deposantId);
   const warn = dep && dep.restituted ? ' Attention : le dossier du déposant est déjà marqué restitué.' : '';
   openConfirmModal('Annuler la vente ?',
-    `L'article n° ${art.code} (${art.brandModel}, ${Number(art.price).toFixed(2)} €) sera retiré de la vente et remis en vente avec le même numéro. Pensez à rembourser l'acheteur.${warn}`,
+    `L'article n° ${art.code} (${art.brandModel}, ${Number(art.price).toFixed(2)} €) sera retiré de la vente et remis en vente avec le même numéro. Pensez à rembourser l'acheteur.${saleMixedNote(art.id)}${warn}`,
     () => {
       const a = appState.articles.find(x => x.id === artId);
       if (!a || a.status !== 'sold') { showToast('Article déjà modifié sur un autre appareil.', 'warning'); lookupArticleForCancel(); return; }
@@ -2049,6 +2222,7 @@ function cancelSaleForArticle(artId) {
       const sale = appState.sales.find(s => (s.articleIds || []).includes(a.id));
       if (sale) {
         sale.articleIds = sale.articleIds.filter(id => id !== a.id);
+        if (sale.articleIds.length > 0) adjustMixedPayments(sale, Number(a.price));
         if (sale.articleIds.length === 0) {
           appState.sales = appState.sales.filter(s => s.id !== sale.id);
         } else {
@@ -2203,7 +2377,7 @@ function printBourseRecap() {
   const deps = appState.deposants.filter(d => d.depositNumber !== null);
   const pros = deps.filter(d => d.isPro).length;
   let depositFees = 0;
-  deps.forEach(d => { if (!d.isPro) depositFees += arts.filter(a => a.deposantId === d.id).length * DEPOSIT_FEE_PARTICULIER; });
+  deps.forEach(d => { depositFees += getDeposantDepositFee(d, arts.filter(a => a.deposantId === d.id).length); });
   const club = depositFees + commission;
   const fraisList = (appState.frais || []).slice().sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
   const totalFrais = fraisList.reduce((sum, f) => sum + Number(f.amount || 0), 0);
@@ -2220,10 +2394,14 @@ function printBourseRecap() {
     if (a.status === 'sold') { types[t].sold++; types[t].ca += Number(a.price); }
   });
   const pay = {};
+  let mixedCount = 0;
   appState.sales.forEach(sl => {
-    const m = sl.paymentMethod || 'Non précisé';
-    pay[m] = pay[m] || { n: 0, total: 0 };
-    pay[m].n++; pay[m].total += Number(sl.total || 0);
+    const parts = (sl.payments && sl.payments.length) ? sl.payments : [{ method: sl.paymentMethod || 'Non précisé', amount: Number(sl.total || 0) }];
+    if (sl.payments && sl.payments.length) mixedCount++;
+    parts.forEach(p => {
+      pay[p.method] = pay[p.method] || { n: 0, total: 0 };
+      pay[p.method].n++; pay[p.method].total += Number(p.amount);
+    });
   });
 
   const th = 'padding:2mm 2.5mm;border:1px solid #cbd5e1;background:#e2e8f0;text-align:left;font-size:11px;';
@@ -2245,7 +2423,7 @@ function printBourseRecap() {
       <div style="${h2}">Résultat financier</div>
       <table style="width:100%;border-collapse:collapse;">
         ${row('Volume total des ventes (brut)', eur(gross))}
-        ${row(`Frais de dépôt encaissés (${eur(DEPOSIT_FEE_PARTICULIER)} / article, hors Pro)`, eur(depositFees))}
+        ${row(`Frais de dépôt encaissés (${eur(DEPOSIT_FEE_PARTICULIER)} / article, hors Pros exonérés)`, eur(depositFees))}
         ${row('Commission sur les ventes (10 %)', eur(commission))}
         ${row('Recette totale du club', eur(club), 'background:#f1f5f9;font-weight:800;')}
         ${row('Frais annexes (à déduire)', '- ' + eur(totalFrais), 'color:#be123c;')}
@@ -2276,6 +2454,7 @@ function printBourseRecap() {
         <tr><th style="${th}">Mode</th><th style="${th}text-align:right;">Tickets</th><th style="${th}text-align:right;">Montant</th></tr>
         ${Object.keys(pay).map(m => `<tr><td style="${td}">${escapeHtml(m)}</td><td style="${td}${num}">${pay[m].n}</td><td style="${td}${num}">${eur(pay[m].total)}</td></tr>`).join('') || `<tr><td colspan="3" style="${td}">Aucune vente</td></tr>`}
       </table>
+      ${mixedCount ? `<div style="font-size:10px;color:#475569;margin-top:1.5mm;">Dont ${mixedCount} ticket(s) réglé(s) en paiement mixte, répartis ci-dessus par mode de règlement.</div>` : ''}
 
       <div style="${h2}">Frais annexes</div>
       <table style="width:100%;border-collapse:collapse;">
@@ -2284,6 +2463,126 @@ function printBourseRecap() {
         <tr><td colspan="2" style="${td}font-weight:900;background:#f1f5f9;">Total</td><td style="${td}${num}background:#f1f5f9;">${eur(totalFrais)}</td></tr>
       </table>
     </div>`;
+  showToast('Dans la fenêtre d\'impression, choisissez « Enregistrer au format PDF ».', 'info');
+  setTimeout(() => window.print(), 300);
+}
+
+// ===== Sommes à restituer par poste (préparation des caisses) =====
+function getRestitutionByPoste() {
+  const groups = Object.values(DEPOT_POSTES_CONFIG).map(p => ({ id: p.id, name: p.name, deps: [] }));
+  const other = { id: '_autre', name: 'Autres (sans poste)', deps: [] };
+  appState.deposants.filter(d => d.depositNumber !== null).forEach(d => {
+    (groups.find(g => g.id === d.postId) || other).deps.push(d);
+  });
+  if (other.deps.length) groups.push(other);
+  return groups.map(g => {
+    const rows = g.deps.map(d => {
+      const arts = appState.articles.filter(a => a.deposantId === d.id);
+      const soldArts = arts.filter(a => a.status === 'sold');
+      const gross = soldArts.reduce((sum, a) => sum + Number(a.price), 0);
+      return { d, sold: soldArts.length, unsold: arts.filter(a => a.status === 'available').length, net: gross * SELLER_PAYOUT_RATE, done: !!d.restituted };
+    }).sort((a, b) => String(a.d.depositNumber).localeCompare(String(b.d.depositNumber), 'fr', { numeric: true }));
+    const todo = rows.filter(r => !r.done);
+    return {
+      id: g.id, name: g.name, rows, todo,
+      dossiers: rows.length, restitues: rows.length - todo.length,
+      payers: todo.filter(r => r.net > 0).length,
+      due: todo.reduce((sum, r) => sum + r.net, 0),
+      paid: rows.filter(r => r.done).reduce((sum, r) => sum + r.net, 0),
+      unsold: todo.reduce((sum, r) => sum + r.unsold, 0)
+    };
+  });
+}
+
+function openRestitutionPosteModal() {
+  if (!appState.isCaissesUnlocked) return;
+  const data = getRestitutionByPoste();
+  const eur = n => Number(n).toFixed(2).replace('.', ',') + ' €';
+  const tot = data.reduce((t, g) => ({ dossiers: t.dossiers + g.dossiers, todo: t.todo + g.todo.length, payers: t.payers + g.payers, due: t.due + g.due, paid: t.paid + g.paid, unsold: t.unsold + g.unsold }), { dossiers: 0, todo: 0, payers: 0, due: 0, paid: 0, unsold: 0 });
+  let ov = document.getElementById('restitution-poste-modal');
+  if (!ov) {
+    ov = document.createElement('div');
+    ov.id = 'restitution-poste-modal';
+    ov.className = 'hidden fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4 no-print';
+    document.body.appendChild(ov);
+  }
+  ov.innerHTML = `
+    <div class="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 fade-in space-y-4 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <h3 class="text-lg font-extrabold text-slate-900">Sommes à restituer par poste</h3>
+          <p class="text-xs text-slate-500">Net à remettre aux déposants (90 % des ventes) et invendus à rendre, pour les dossiers pas encore restitués.</p>
+        </div>
+        <button onclick="document.getElementById('restitution-poste-modal').classList.add('hidden')" class="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100"><i data-lucide="x" class="w-5 h-5"></i></button>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead><tr class="text-[11px] uppercase text-slate-500 border-b border-slate-200">
+            <th class="text-left py-2 pr-2">Poste</th><th class="text-center px-2">Dossiers à restituer</th><th class="text-center px-2">Dont à payer</th><th class="text-right px-2">Somme à préparer</th><th class="text-center pl-2">Invendus</th>
+          </tr></thead>
+          <tbody>
+            ${data.map(g => `<tr class="border-b border-slate-100">
+              <td class="py-2 pr-2 font-bold">${escapeHtml(g.name)}</td>
+              <td class="text-center px-2">${g.todo.length} <span class="text-[11px] text-slate-400">/ ${g.dossiers}</span></td>
+              <td class="text-center px-2">${g.payers}</td>
+              <td class="text-right px-2 font-black text-indigo-700">${eur(g.due)}</td>
+              <td class="text-center pl-2">${g.unsold}</td></tr>`).join('')}
+            <tr class="bg-indigo-50 font-extrabold">
+              <td class="py-2 pr-2">TOTAL</td><td class="text-center px-2">${tot.todo} <span class="text-[11px] font-semibold text-slate-500">/ ${tot.dossiers}</span></td><td class="text-center px-2">${tot.payers}</td><td class="text-right px-2 text-indigo-800">${eur(tot.due)}</td><td class="text-center pl-2">${tot.unsold}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="text-xs text-slate-500">Déjà remis aux déposants : <strong>${eur(tot.paid)}</strong> (dossiers marqués restitués).</p>
+      <div class="flex justify-end gap-2">
+        <button onclick="document.getElementById('restitution-poste-modal').classList.add('hidden')" class="px-4 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-bold text-sm">Fermer</button>
+        <button onclick="printRestitutionByPoste()" class="px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm">Imprimer / PDF (avec le détail par poste)</button>
+      </div>
+    </div>`;
+  ov.classList.remove('hidden');
+  refreshIcons();
+}
+
+function printRestitutionByPoste() {
+  if (!appState.isCaissesUnlocked) return;
+  const data = getRestitutionByPoste();
+  const eur = n => Number(n).toFixed(2).replace('.', ',') + ' €';
+  const th = 'padding:2mm 2.5mm;border:1px solid #cbd5e1;background:#e2e8f0;text-align:left;font-size:11px;';
+  const td = 'padding:2mm 2.5mm;border:1px solid #cbd5e1;font-size:12px;';
+  const r = 'text-align:right;font-weight:700;';
+  const c = 'text-align:center;';
+  const head = (title, sub) => `
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #0f172a;padding-bottom:3mm;margin-bottom:4mm;">
+      <div><div style="font-size:11px;font-weight:800;color:#0284c7;text-transform:uppercase;">${escapeHtml(CLUB_NAME)}</div>
+      <div style="font-size:20px;font-weight:900;">${title}</div></div>
+      <div style="font-size:11px;color:#475569;text-align:right;">${sub}<br>Édité le ${new Date().toLocaleString('fr-FR')}</div>
+    </div>`;
+  const tot = data.reduce((t, g) => ({ todo: t.todo + g.todo.length, dossiers: t.dossiers + g.dossiers, payers: t.payers + g.payers, due: t.due + g.due, paid: t.paid + g.paid, unsold: t.unsold + g.unsold }), { todo: 0, dossiers: 0, payers: 0, due: 0, paid: 0, unsold: 0 });
+  const detailed = data.filter(g => g.todo.length > 0);
+
+  let html = `<div style="font-family:'Inter',sans-serif;color:#0f172a;${detailed.length ? 'page-break-after:always;' : ''}">
+    ${head('SOMMES À RESTITUER PAR POSTE', 'Préparation des caisses de restitution')}
+    <table style="width:100%;border-collapse:collapse;">
+      <tr><th style="${th}">Poste</th><th style="${th}${c}">Dossiers à restituer</th><th style="${th}${c}">Dont à payer</th><th style="${th}text-align:right;">Somme à préparer</th><th style="${th}${c}">Invendus à rendre</th></tr>
+      ${data.map(g => `<tr><td style="${td}font-weight:700;">${escapeHtml(g.name)}</td><td style="${td}${c}">${g.todo.length} / ${g.dossiers}</td><td style="${td}${c}">${g.payers}</td><td style="${td}${r}">${eur(g.due)}</td><td style="${td}${c}">${g.unsold}</td></tr>`).join('')}
+      <tr style="background:#eef2ff;"><td style="${td}font-weight:900;">TOTAL</td><td style="${td}${c}font-weight:900;">${tot.todo} / ${tot.dossiers}</td><td style="${td}${c}font-weight:900;">${tot.payers}</td><td style="${td}${r}font-size:14px;color:#312e81;">${eur(tot.due)}</td><td style="${td}${c}font-weight:900;">${tot.unsold}</td></tr>
+    </table>
+    <p style="font-size:11px;color:#475569;margin-top:4mm;">Somme à préparer = 90 % du total des ventes de chaque déposant, hors dossiers déjà restitués (${eur(tot.paid)} déjà remis). Les pages suivantes détaillent chaque poste.</p>
+  </div>`;
+
+  detailed.forEach((g, i) => {
+    html += `<div style="font-family:'Inter',sans-serif;color:#0f172a;${i < detailed.length - 1 ? 'page-break-after:always;' : ''}">
+      ${head(escapeHtml(g.name.toUpperCase()), 'Détail des restitutions à préparer')}
+      <table style="width:100%;border-collapse:collapse;">
+        <tr><th style="${th}width:8mm;">✓</th><th style="${th}width:22mm;">N° dossier</th><th style="${th}">Déposant</th><th style="${th}${c}">Vendus</th><th style="${th}${c}">Invendus à rendre</th><th style="${th}text-align:right;width:30mm;">À remettre</th></tr>
+        ${g.todo.map(x => `<tr><td style="${td}${c}">☐</td><td style="${td}font-weight:700;">${escapeHtml(x.d.depositNumber)}</td><td style="${td}">${escapeHtml(x.d.nom)} ${escapeHtml(x.d.prenom)}</td><td style="${td}${c}">${x.sold}</td><td style="${td}${c}">${x.unsold}</td><td style="${td}${r}">${eur(x.net)}</td></tr>`).join('')}
+        <tr style="background:#eef2ff;"><td colspan="3" style="${td}font-weight:900;">Total ${escapeHtml(g.name)}</td><td style="${td}${c}font-weight:900;">${g.todo.reduce((n, x) => n + x.sold, 0)}</td><td style="${td}${c}font-weight:900;">${g.unsold}</td><td style="${td}${r}font-size:13px;color:#312e81;">${eur(g.due)}</td></tr>
+      </table>
+    </div>`;
+  });
+
+  document.getElementById('print-area').innerHTML = html;
+  document.getElementById('restitution-poste-modal')?.classList.add('hidden');
   showToast('Dans la fenêtre d\'impression, choisissez « Enregistrer au format PDF ».', 'info');
   setTimeout(() => window.print(), 300);
 }
