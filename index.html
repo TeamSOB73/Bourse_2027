@@ -1211,7 +1211,7 @@ function renderPosteDeposantsList() {
   if (!poste) return;
   const filter = (document.getElementById('poste-filter-input')?.value || '').trim().toLowerCase();
   const list = appState.deposants
-    .filter(d => d.depositNumber && (d.postId === poste.id || appState.isCaissesUnlocked))
+    .filter(d => d.depositNumber && d.postId === poste.id)
     .filter(d => !filter || String(d.depositNumber).toLowerCase().includes(filter) || d.nom.toLowerCase().includes(filter) || d.prenom.toLowerCase().includes(filter))
     .reverse();
   
@@ -1241,6 +1241,8 @@ function renderPosteDeposantsList() {
 }
 
 function selectVolunteerDeposant(depId) {
+  const target = appState.deposants.find(d => d.id === depId);
+  if (!target || !appState.unlockedDepotPoste || target.postId !== appState.unlockedDepotPoste.id) return;
   appState.selectedVolunteerDepId = depId;
   renderPosteDeposantsList();
   renderVolunteerActiveDossier();
@@ -1249,7 +1251,9 @@ function selectVolunteerDeposant(depId) {
 function renderVolunteerActiveDossier() {
   const noSel = document.getElementById('volunteer-no-selection');
   const activeBox = document.getElementById('volunteer-active-dossier');
-  const dep = appState.deposants.find(d => d.id === appState.selectedVolunteerDepId);
+  let dep = appState.deposants.find(d => d.id === appState.selectedVolunteerDepId);
+  const curPoste = appState.unlockedDepotPoste;
+  if (dep && curPoste && dep.postId !== curPoste.id) { appState.selectedVolunteerDepId = null; dep = null; }
 
   if (!dep) {
     noSel.classList.remove('hidden');
